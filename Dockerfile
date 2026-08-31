@@ -9,6 +9,8 @@ FROM python:3.10-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DATA_DIR=/data \
+    TORCH_HOME=/data/.cache/torch \
+    XDG_CACHE_HOME=/data/.cache \
     PORT=8000
 
 RUN apt-get update \
@@ -20,7 +22,7 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 COPY --from=frontend-builder /frontend/dist ./static
-RUN mkdir -p /data
+RUN mkdir -p /data/.cache/torch
 
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
