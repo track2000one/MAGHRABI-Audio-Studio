@@ -13,20 +13,50 @@ export interface JobResponse {
   error?: string | null
 }
 
+export interface AuthStatus {
+  configured: boolean
+  authenticated: boolean
+  username?: string | null
+}
+
+async function apiError(response: Response, fallback: string) {
+  const payload = await response.json().catch(() => ({ detail: fallback }))
+  return new Error(payload.detail || fallback)
+}
+
+export async function getAuthStatus() {
+  const response = await fetch('/api/auth/status', { credentials: 'include' })
+  if (!response.ok) throw await apiError(response, 'تعذر التحقق من جلسة الدخول.')
+  return response.json() as Promise<AuthStatus>
+}
+
+export async function login(username: string, password: string) {
+  const response = await fetch('/api/auth/login', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!response.ok) throw await apiError(response, 'تعذر تسجيل الدخول.')
+  return response.json() as Promise<{ authenticated: true; username: string }>
+}
+
+export async function logout() {
+  const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+  if (!response.ok) throw await apiError(response, 'تعذر تسجيل الخروج.')
+}
+
 export async function createSeparationJob(file: File, mode: '2stems' | '4stems') {
   const body = new FormData()
   body.append('file', file)
   body.append('mode', mode)
-  const response = await fetch('/api/jobs', { method: 'POST', body })
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({ detail: 'تعذر رفع الملف.' }))
-    throw new Error(payload.detail || 'تعذر رفع الملف.')
-  }
+  const response = await fetch('/api/jobs', { method: 'POST', body, credentials: 'include' })
+  if (!response.ok) throw await apiError(response, 'تعذر رفع الملف.')
   return response.json() as Promise<JobResponse>
 }
 
 export async function getJob(jobId: string) {
-  const response = await fetch(`/api/jobs/${jobId}`)
-  if (!response.ok) throw new Error('تعذر قراءة حالة المعالجة.')
+  const response = await fetch(`/api/jobs/${jobId}`, { credentials: 'include' })
+  if (!response.ok) throw await apiError(response, 'تعذر قراءة حالة المعالجة.')
   return response.json() as Promise<JobResponse>
 }
