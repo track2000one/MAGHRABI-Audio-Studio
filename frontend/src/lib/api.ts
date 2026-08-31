@@ -24,6 +24,23 @@ async function apiError(response: Response, fallback: string) {
   return new Error(payload.detail || fallback)
 }
 
+function userFacingJobError(error?: string | null) {
+  if (!error) return 'تعذرت معالجة الملف الصوتي. يرجى المحاولة مرة أخرى.'
+  const normalized = error.toLowerCase()
+
+  if (normalized.includes('torchcodec')) {
+    return 'اكتمل تحليل الصوت، لكن تعذر حفظ المسارات النهائية. تم تحديث محرك التصدير، أعد المحاولة بعد اكتمال نشر النسخة الجديدة.'
+  }
+  if (normalized.includes('out of memory') || normalized.includes('killed')) {
+    return 'توقفت المعالجة بسبب عدم كفاية الذاكرة المتاحة. جرّب ملفاً أقصر أو وضع Vocal + Music.'
+  }
+  if (normalized.includes('ffmpeg')) {
+    return 'تعذر قراءة أو تصدير الملف الصوتي. تأكد من أن الملف سليم ثم حاول مرة أخرى.'
+  }
+
+  return 'تعذرت معالجة الملف الصوتي. راجع سجل Railway للتفاصيل التقنية ثم حاول مرة أخرى.'
+}
+
 export async function getAuthStatus() {
   const response = await fetch('/api/auth/status', { credentials: 'include' })
   if (!response.ok) throw await apiError(response, 'تعذر التحقق من جلسة الدخول.')
@@ -58,5 +75,7 @@ export async function createSeparationJob(file: File, mode: '2stems' | '4stems')
 export async function getJob(jobId: string) {
   const response = await fetch(`/api/jobs/${jobId}`, { credentials: 'include' })
   if (!response.ok) throw await apiError(response, 'تعذر قراءة حالة المعالجة.')
-  return response.json() as Promise<JobResponse>
+  const job = (await response.json()) as JobResponse
+  if (job.status === 'failed') job.error = userFacingJobError(job.error)
+  return job
 }
