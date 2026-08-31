@@ -20,12 +20,11 @@ RUN apt-get update \
 WORKDIR /app
 COPY backend/requirements.txt ./requirements.txt
 
-# Railway is CPU-only. Pin a mutually compatible PyTorch / TorchAudio / TorchCodec
-# stack from the official CPU wheel index so Demucs can save WAV stems reliably.
+# Stable CPU stack for Demucs. TorchAudio 2.5.1 can export WAV using
+# the installed FFmpeg backend and does not require TorchCodec.
 RUN pip install --no-cache-dir \
-      torch==2.8.0 \
-      torchaudio==2.8.0 \
-      torchcodec==0.7.0 \
+      torch==2.5.1 \
+      torchaudio==2.5.1 \
       --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 
