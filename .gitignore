@@ -1,0 +1,16 @@
+node_modules/
+frontend/dist/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.data/
+uploads/
+outputs/
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
