@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -14,7 +17,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -26,12 +29,23 @@ DEMUCS_MODEL = os.getenv("DEMUCS_MODEL", "htdemucs")
 MAX_WORKERS = max(1, int(os.getenv("MAX_WORKERS", "1")))
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
 
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+AUTH_SECRET = os.getenv("AUTH_SECRET", "")
+SESSION_COOKIE = "maghrabi_audio_session"
+SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", str(12 * 60 * 60)))
+
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="audio-separator")
 store_lock = threading.Lock()
 active_lock = threading.Lock()
 active_jobs: set[str] = set()
-app = FastAPI(title="MAGHRABI Audio Studio API", version="0.2.0")
+app = FastAPI(title="MAGHRABI Audio Studio API", version="0.3.0")
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
 
 class JobResponse(BaseModel):
@@ -45,6 +59,95 @@ class JobResponse(BaseModel):
     elapsed_seconds: int = 0
     stems: dict[str, str]
     error: str | None = None
+
+
+def auth_configured() -> bool:
+    return bool(ADMIN_USERNAME and ADMIN_PASSWORD and AUTH_SECRET and len(AUTH_SECRET) >= 32)
+
+
+def _b64encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _b64decode(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def create_session_token(username: str) -> str:
+    expires_at = int(time.time()) + SESSION_TTL_SECONDS
+    payload = f"{username}|{expires_at}".encode("utf-8")
+    encoded = _b64encode(payload)
+    signature = hmac.new(AUTH_SECRET.encode("utf-8"), encoded.encode("ascii"), hashlib.sha256).digest()
+    return f"{encoded}.{_b64encode(signature)}"
+
+
+def verify_session_token(token: str | None) -> str | None:
+    if not token or not auth_configured() or "." not in token:
+        return None
+    try:
+        encoded, supplied_signature = token.split(".", 1)
+        expected_signature = hmac.new(
+            AUTH_SECRET.encode("utf-8"), encoded.encode("ascii"), hashlib.sha256
+        ).digest()
+        if not hmac.compare_digest(_b64decode(supplied_signature), expected_signature):
+            return None
+        username, expires_text = _b64decode(encoded).decode("utf-8").rsplit("|", 1)
+        if username != ADMIN_USERNAME or int(expires_text) < int(time.time()):
+            return None
+        return username
+    except (ValueError, TypeError, UnicodeDecodeError):
+        return None
+
+
+def current_user(request: Request) -> str | None:
+    return verify_session_token(request.cookies.get(SESSION_COOKIE))
+
+
+def require_auth(request: Request) -> str:
+    username = current_user(request)
+    if not username:
+        raise HTTPException(status_code=401, detail="يلزم تسجيل الدخول للمتابعة.")
+    return username
+
+
+@app.get("/api/auth/status")
+def auth_status(request: Request) -> dict:
+    username = current_user(request)
+    return {
+        "configured": auth_configured(),
+        "authenticated": bool(username),
+        "username": username,
+    }
+
+
+@app.post("/api/auth/login")
+def login(payload: LoginRequest, response: Response) -> dict:
+    if not auth_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="إعداد تسجيل الدخول غير مكتمل في Railway. أضف ADMIN_USERNAME وADMIN_PASSWORD وAUTH_SECRET.",
+        )
+    username_ok = hmac.compare_digest(payload.username.strip(), ADMIN_USERNAME)
+    password_ok = hmac.compare_digest(payload.password, ADMIN_PASSWORD)
+    if not (username_ok and password_ok):
+        raise HTTPException(status_code=401, detail="اسم المستخدم أو كلمة المرور غير صحيحة.")
+
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=create_session_token(ADMIN_USERNAME),
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path="/",
+    )
+    return {"authenticated": True, "username": ADMIN_USERNAME}
+
+
+@app.post("/api/auth/logout")
+def logout(response: Response) -> dict:
+    response.delete_cookie(SESSION_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
+    return {"authenticated": False}
 
 
 def job_dir(job_id: str) -> Path:
@@ -140,16 +243,13 @@ def run_demucs_with_progress(job_id: str, command: list[str]) -> tuple[int, str]
             return
         tail.append(line)
         print(f"[demucs:{job_id}] {line}", flush=True)
-
         demucs_percent = extract_demucs_percent(line)
         if demucs_percent is None or demucs_percent <= last_demucs_percent:
             return
-
         last_demucs_percent = demucs_percent
         mapped_progress = min(88, 25 + round(demucs_percent * 0.63))
         if mapped_progress <= last_mapped_progress:
             return
-
         last_mapped_progress = mapped_progress
         update_state(
             job_id,
@@ -171,10 +271,8 @@ def run_demucs_with_progress(job_id: str, command: list[str]) -> tuple[int, str]
             buffer = ""
         else:
             buffer += char
-
     if buffer:
         handle_line(buffer)
-
     return_code = process.wait()
     return return_code, "\n".join(tail)
 
@@ -223,10 +321,8 @@ def run_separation(job_id: str) -> None:
             message="بدأ تحليل الصوت وفصل المسارات. سيظهر التقدم تلقائياً أثناء المعالجة...",
         )
         print(f"[worker] running Demucs for {job_id}: {' '.join(command)}", flush=True)
-
         return_code, output_tail = run_demucs_with_progress(job_id, command)
         print(f"[worker] Demucs exit code for {job_id}: {return_code}", flush=True)
-
         if return_code != 0:
             raise RuntimeError(output_tail or "Demucs exited with an unknown error")
 
@@ -236,7 +332,6 @@ def run_separation(job_id: str) -> None:
             progress=90,
             message="اكتمل تحليل الصوت، ويتم الآن تجهيز ملفات المسارات للمعاينة والتحميل...",
         )
-
         expected = (
             ["vocals", "no_vocals"]
             if state["mode"] == "2stems"
@@ -313,7 +408,6 @@ def submit_job(job_id: str, *, recovered: bool = False) -> bool:
         if job_id in active_jobs:
             return False
         active_jobs.add(job_id)
-
     try:
         if recovered:
             update_state(
@@ -370,7 +464,8 @@ def health() -> dict:
         "worker": "ready",
         "active_jobs": active,
         "max_workers": MAX_WORKERS,
-        "api_version": "0.2.0",
+        "auth_configured": auth_configured(),
+        "api_version": "0.3.0",
     }
 
 
@@ -378,6 +473,7 @@ def health() -> dict:
 async def create_job(
     file: UploadFile = File(...),
     mode: Literal["2stems", "4stems"] = Form("4stems"),
+    _username: str = Depends(require_auth),
 ) -> JobResponse:
     original_name = Path(file.filename or "audio").name
     extension = Path(original_name).suffix.lower()
@@ -390,17 +486,13 @@ async def create_job(
     input_path = folder / f"original{extension}"
     size = 0
     chunk_size = 1024 * 1024
-
     with input_path.open("wb") as output:
         while chunk := await file.read(chunk_size):
             size += len(chunk)
             if size > MAX_UPLOAD_MB * 1024 * 1024:
                 output.close()
                 input_path.unlink(missing_ok=True)
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"الحد الأعلى لحجم الملف هو {MAX_UPLOAD_MB} MB.",
-                )
+                raise HTTPException(status_code=413, detail=f"الحد الأعلى لحجم الملف هو {MAX_UPLOAD_MB} MB.")
             output.write(chunk)
     await file.close()
 
@@ -419,7 +511,6 @@ async def create_job(
         "error": None,
     }
     write_state(job_id, state)
-
     try:
         submit_job(job_id)
     except Exception as exc:
@@ -432,17 +523,16 @@ async def create_job(
             error=str(exc)[-4000:],
         )
         raise HTTPException(status_code=500, detail="تعذر تشغيل عامل معالجة الصوت.") from exc
-
     return JobResponse(**public_state(read_state(job_id)))
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobResponse)
-def get_job(job_id: str) -> JobResponse:
+def get_job(job_id: str, _username: str = Depends(require_auth)) -> JobResponse:
     return JobResponse(**public_state(read_state(job_id)))
 
 
 @app.get("/api/jobs/{job_id}/files/{filename}")
-def get_stem(job_id: str, filename: str) -> FileResponse:
+def get_stem(job_id: str, filename: str, _username: str = Depends(require_auth)) -> FileResponse:
     safe_name = Path(filename).name
     if safe_name != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
