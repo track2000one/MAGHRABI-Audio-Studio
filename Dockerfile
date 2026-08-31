@@ -5,7 +5,7 @@ RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.10-slim AS runtime
+FROM python:3.9-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DATA_DIR=/data \
@@ -14,19 +14,24 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libsndfile1 \
+    && apt-get install -y --no-install-recommends \
+       ffmpeg \
+       libsndfile1 \
+       build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY backend/requirements.txt ./requirements.txt
 
-# Stable CPU stack for Demucs. TorchAudio 2.5.1 can export WAV using
-# the installed FFmpeg backend and does not require TorchCodec.
-RUN pip install --no-cache-dir \
-      torch==2.5.1 \
-      torchaudio==2.5.1 \
-      --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir -r requirements.txt
+# Demucs 4.0.1 requires torchaudio < 2.1. Use the matching official CPU
+# PyTorch stack. This predates the TorchCodec save dependency and works with
+# the FFmpeg backend already installed above.
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && python -m pip install --no-cache-dir \
+       torch==2.0.1+cpu \
+       torchaudio==2.0.2+cpu \
+       --index-url https://download.pytorch.org/whl/cpu \
+    && python -m pip install --no-cache-dir -r requirements.txt
 
 COPY backend/app ./app
 COPY --from=frontend-builder /frontend/dist ./static
