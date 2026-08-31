@@ -5,7 +5,7 @@ RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.9-slim AS runtime
+FROM python:3.10-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DATA_DIR=/data \
@@ -24,8 +24,7 @@ WORKDIR /app
 COPY backend/requirements.txt ./requirements.txt
 
 # Demucs 4.0.1 requires torchaudio < 2.1. Use the matching official CPU
-# PyTorch stack. This predates the TorchCodec save dependency and works with
-# the FFmpeg backend already installed above.
+# PyTorch stack. TorchAudio 2.0.2 predates the TorchCodec save dependency.
 RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
     && python -m pip install --no-cache-dir \
        torch==2.0.1+cpu \
