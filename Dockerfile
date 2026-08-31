@@ -34,7 +34,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
 
 COPY backend/app ./app
 COPY --from=frontend-builder /frontend/dist ./static
-RUN mkdir -p /data/.cache/torch
+RUN mkdir -p /data/.cache/torch /data/tools
 
 EXPOSE 8000
-CMD ["sh", "-c", "python -m app.prestart && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "python -m app.prestart && uvicorn app.entry:app --host 0.0.0.0 --port ${PORT:-8000}"]
