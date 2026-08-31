@@ -1,21 +1,45 @@
-import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ChangeEvent,
+  DragEvent,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   Activity,
   AudioLines,
   CheckCircle2,
+  Clock3,
   Download,
+  Eye,
+  EyeOff,
   FileAudio,
   Headphones,
   Layers3,
+  LockKeyhole,
+  LogOut,
   Pause,
   Play,
   RotateCcw,
+  ShieldCheck,
   Sparkles,
   UploadCloud,
+  UserRound,
   Volume2,
   Waves,
 } from 'lucide-react'
-import { createSeparationJob, getJob, JobResponse, StemName } from './lib/api'
+import {
+  AuthStatus,
+  createSeparationJob,
+  getAuthStatus,
+  getJob,
+  JobResponse,
+  login,
+  logout,
+  StemName,
+} from './lib/api'
 
 const stemMeta: Record<StemName, { label: string; icon: string }> = {
   vocals: { label: 'الصوت البشري', icon: '🎤' },
@@ -25,49 +49,230 @@ const stemMeta: Record<StemName, { label: string; icon: string }> = {
   instrumental: { label: 'الموسيقى فقط', icon: '🎧' },
 }
 
-const previewStems = [
-  ['🎤', 'Vocals'],
-  ['🥁', 'Drums'],
-  ['🎸', 'Bass'],
-  ['🎼', 'Other'],
-] as const
+const stageMeta: Record<string, string> = {
+  queued: 'في قائمة المعالجة',
+  loading_model: 'تجهيز نموذج الذكاء الاصطناعي',
+  separating: 'فصل وتحليل المسارات',
+  finalizing: 'تجهيز الملفات النهائية',
+  completed: 'اكتملت المعالجة',
+  failed: 'تعذرت المعالجة',
+}
 
 function formatSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function formatDuration(totalSeconds = 0) {
-  const seconds = Math.max(0, Math.floor(totalSeconds))
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const remainder = seconds % 60
-  if (hours > 0) {
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
-  }
-  return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
-}
-
-function stageLabel(stage?: string) {
-  switch (stage) {
-    case 'queued':
-      return 'في قائمة المعالجة'
-    case 'loading_model':
-      return 'تجهيز نموذج الذكاء الاصطناعي'
-    case 'separating':
-      return 'فصل وتحليل المسارات'
-    case 'finalizing':
-      return 'تجهيز الملفات النهائية'
-    case 'completed':
-      return 'اكتمل الفصل'
-    case 'failed':
-      return 'توقفت المعالجة'
-    default:
-      return 'جاري المعالجة'
-  }
+function formatTime(seconds: number) {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
 function App() {
+  const [auth, setAuth] = useState<AuthStatus | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
+
+  useEffect(() => {
+    getAuthStatus()
+      .then(setAuth)
+      .catch((error) => {
+        setAuthError(error instanceof Error ? error.message : 'تعذر الاتصال بالخدمة.')
+        setAuth({ configured: false, authenticated: false, username: null })
+      })
+  }, [])
+
+  if (!auth) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#070b14] text-slate-100">
+        <div className="flex items-center gap-3 text-sm text-slate-400">
+          <Activity className="h-5 w-5 animate-pulse text-cyan-300" /> جاري تجهيز الاستوديو...
+        </div>
+      </div>
+    )
+  }
+
+  if (!auth.authenticated) {
+    return (
+      <LoginPage
+        configured={auth.configured}
+        initialError={authError}
+        onLoggedIn={(username) =>
+          setAuth({ configured: true, authenticated: true, username })
+        }
+      />
+    )
+  }
+
+  return (
+    <Studio
+      username={auth.username || 'admin'}
+      onLogout={async () => {
+        await logout().catch(() => undefined)
+        setAuth({ configured: auth.configured, authenticated: false, username: null })
+      }}
+    />
+  )
+}
+
+function LoginPage({
+  configured,
+  initialError,
+  onLoggedIn,
+}: {
+  configured: boolean
+  initialError: string | null
+  onLoggedIn: (username: string) => void
+}) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(initialError)
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!configured || !username.trim() || !password) return
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await login(username.trim(), password)
+      onLoggedIn(result.username)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'تعذر تسجيل الدخول.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#060a13] text-slate-100">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(79,70,229,.24),transparent_32%),radial-gradient(circle_at_15%_85%,rgba(6,182,212,.14),transparent_30%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[.12] [background-image:linear-gradient(rgba(255,255,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.08)_1px,transparent_1px)] [background-size:42px_42px]" />
+
+      <div className="relative mx-auto grid min-h-screen max-w-7xl items-center gap-10 px-5 py-10 lg:grid-cols-[1.05fr_.95fr] lg:px-8">
+        <section className="order-2 lg:order-1">
+          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/[.05] px-3 py-1.5 text-xs font-bold text-cyan-200">
+            <ShieldCheck className="h-4 w-4" /> Secure Studio Access
+          </div>
+          <h1 className="mt-6 max-w-2xl text-4xl font-black leading-[1.12] tracking-tight sm:text-5xl lg:text-6xl">
+            MAGHRABI
+            <span className="block bg-gradient-to-l from-cyan-300 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
+              Audio Studio
+            </span>
+          </h1>
+          <p className="mt-5 max-w-xl text-base leading-8 text-slate-400 sm:text-lg">
+            منصة عزل ومعالجة الصوت بالذكاء الاصطناعي. سجّل الدخول للوصول إلى مشاريعك وتشغيل محرك فصل المسارات.
+          </p>
+          <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
+            {[
+              ['🎤', 'Vocals'],
+              ['🥁', 'Drums'],
+              ['🎸', 'Bass'],
+            ].map(([icon, label]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/[.025] p-4">
+                <div className="text-xl">{icon}</div>
+                <div className="mt-2 text-xs font-bold text-slate-300">{label}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="order-1 lg:order-2">
+          <div className="mx-auto max-w-md rounded-[30px] border border-white/10 bg-white/[.045] p-3 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+            <div className="rounded-[24px] border border-white/10 bg-[#0a101d]/95 p-6 sm:p-8">
+              <div className="mb-8 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-indigo-500/30 to-cyan-400/20">
+                    <AudioLines className="h-6 w-6 text-cyan-200" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black">تسجيل الدخول</p>
+                    <p className="mt-1 text-xs text-slate-500">MAGHRABI Audio Studio</p>
+                  </div>
+                </div>
+                <span className="rounded-full border border-emerald-300/15 bg-emerald-300/[.06] px-2.5 py-1 text-[10px] font-bold text-emerald-300">
+                  PRIVATE
+                </span>
+              </div>
+
+              {!configured && (
+                <div className="mb-5 rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-4 text-xs leading-6 text-amber-100">
+                  <p className="font-black">يلزم إكمال إعداد الدخول في Railway.</p>
+                  <p className="mt-1 text-amber-100/70">
+                    أضف المتغيرات: ADMIN_USERNAME و ADMIN_PASSWORD و AUTH_SECRET ثم أعد النشر.
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <div className="mb-5 rounded-2xl border border-rose-300/15 bg-rose-400/[.06] px-4 py-3 text-xs leading-5 text-rose-200">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={submit} className="space-y-4">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold text-slate-400">اسم المستخدم</span>
+                  <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 focus-within:border-cyan-300/30">
+                    <UserRound className="h-4 w-4 text-slate-500" />
+                    <input
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      disabled={!configured || busy}
+                      autoComplete="username"
+                      className="h-13 w-full bg-transparent py-4 text-sm text-white outline-none placeholder:text-slate-600 disabled:opacity-50"
+                      placeholder="أدخل اسم المستخدم"
+                    />
+                  </div>
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold text-slate-400">كلمة المرور</span>
+                  <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 focus-within:border-cyan-300/30">
+                    <LockKeyhole className="h-4 w-4 text-slate-500" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      disabled={!configured || busy}
+                      autoComplete="current-password"
+                      className="h-13 w-full bg-transparent py-4 text-sm text-white outline-none placeholder:text-slate-600 disabled:opacity-50"
+                      placeholder="أدخل كلمة المرور"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      className="text-slate-500 transition hover:text-slate-200"
+                      aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={!configured || busy || !username.trim() || !password}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-indigo-500 to-cyan-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-indigo-950/40 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {busy ? <Activity className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
+                  {busy ? 'جاري التحقق...' : 'دخول إلى الاستوديو'}
+                </button>
+              </form>
+
+              <div className="mt-6 flex items-center justify-center gap-2 border-t border-white/10 pt-5 text-[11px] text-slate-600">
+                <ShieldCheck className="h-3.5 w-3.5" /> جلسة دخول مشفرة وآمنة
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  )
+}
+
+function Studio({ username, onLogout }: { username: string; onLogout: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [mode, setMode] = useState<'2stems' | '4stems'>('4stems')
@@ -78,7 +283,6 @@ function App() {
 
   useEffect(() => {
     if (!job || !isProcessing) return
-
     const timer = window.setInterval(async () => {
       try {
         const next = await getJob(job.id)
@@ -88,7 +292,6 @@ function App() {
         console.error(pollError)
       }
     }, 1500)
-
     return () => window.clearInterval(timer)
   }, [job?.id, isProcessing])
 
@@ -111,10 +314,7 @@ function App() {
     setJob(null)
   }
 
-  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    acceptFile(event.target.files?.[0])
-  }
-
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => acceptFile(event.target.files?.[0])
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     acceptFile(event.dataTransfer.files?.[0])
@@ -146,7 +346,7 @@ function App() {
       <div className="relative mx-auto max-w-7xl px-5 py-6 md:px-8 lg:py-8">
         <header className="flex flex-col gap-5 border-b border-white/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-indigo-500/30 to-cyan-400/20 shadow-[0_0_35px_rgba(79,70,229,.2)]">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-indigo-500/30 to-cyan-400/20">
               <AudioLines className="h-6 w-6 text-cyan-200" />
             </div>
             <div>
@@ -157,9 +357,16 @@ function App() {
               <p className="mt-0.5 text-xs text-slate-500">افصل الصوت والموسيقى إلى مسارات مستقلة</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.8)]" />
-            Engine ready
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.03] px-3 py-2 text-xs text-slate-300">
+              <UserRound className="h-3.5 w-3.5 text-cyan-300" /> {username}
+            </div>
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-400 transition hover:border-rose-300/20 hover:bg-rose-400/[.05] hover:text-rose-200"
+            >
+              <LogOut className="h-3.5 w-3.5" /> خروج
+            </button>
           </div>
         </header>
 
@@ -175,10 +382,15 @@ function App() {
               </span>
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-8 text-slate-400 sm:text-lg">
-              ارفع الملف، اختر نوع الفصل، ثم استمع لكل مسار وحمّله بشكل مستقل. النسخة الأولى تدعم فصل الصوت البشري والطبول والبيس وبقية الموسيقى.
+              ارفع الملف، اختر نوع الفصل، ثم استمع لكل مسار وحمّله بشكل مستقل.
             </p>
             <div className="mt-7 grid max-w-2xl grid-cols-2 gap-3 sm:grid-cols-4">
-              {previewStems.map(([icon, label]) => (
+              {[
+                ['🎤', 'Vocals'],
+                ['🥁', 'Drums'],
+                ['🎸', 'Bass'],
+                ['🎼', 'Other'],
+              ].map(([icon, label]) => (
                 <div key={label} className="rounded-2xl border border-white/10 bg-white/[.025] p-3.5">
                   <div className="text-xl">{icon}</div>
                   <div className="mt-2 text-sm font-bold text-slate-200">{label}</div>
@@ -205,7 +417,6 @@ function App() {
                 className="hidden"
                 onChange={onFileChange}
               />
-
               {!file ? (
                 <div className="flex min-h-[330px] flex-col items-center justify-center text-center">
                   <div className="grid h-20 w-20 place-items-center rounded-3xl border border-cyan-300/15 bg-cyan-300/[.06]">
@@ -222,9 +433,7 @@ function App() {
                 <div>
                   <div className="flex items-start justify-between gap-4 rounded-2xl border border-white/10 bg-white/[.03] p-4">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-indigo-400/10 text-indigo-200">
-                        <FileAudio />
-                      </div>
+                      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-indigo-400/10 text-indigo-200"><FileAudio /></div>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black text-white">{file.name}</p>
                         <p className="mt-1 text-xs text-slate-500">{formatSize(file.size)}</p>
@@ -249,22 +458,14 @@ function App() {
                         <div className="grid gap-3 sm:grid-cols-2">
                           <button
                             onClick={() => setMode('2stems')}
-                            className={`rounded-2xl border p-4 text-right transition ${
-                              mode === '2stems'
-                                ? 'border-cyan-300/35 bg-cyan-300/[.07]'
-                                : 'border-white/10 bg-white/[.02] hover:border-white/20'
-                            }`}
+                            className={`rounded-2xl border p-4 text-right transition ${mode === '2stems' ? 'border-cyan-300/35 bg-cyan-300/[.07]' : 'border-white/10 bg-white/[.02] hover:border-white/20'}`}
                           >
                             <div className="flex items-center gap-2 font-black"><Headphones className="h-4 w-4" /> Vocal + Music</div>
                             <p className="mt-2 text-xs leading-5 text-slate-500">للكاريوكي وعزل صوت المغني بسرعة.</p>
                           </button>
                           <button
                             onClick={() => setMode('4stems')}
-                            className={`rounded-2xl border p-4 text-right transition ${
-                              mode === '4stems'
-                                ? 'border-indigo-300/35 bg-indigo-300/[.07]'
-                                : 'border-white/10 bg-white/[.02] hover:border-white/20'
-                            }`}
+                            className={`rounded-2xl border p-4 text-right transition ${mode === '4stems' ? 'border-indigo-300/35 bg-indigo-300/[.07]' : 'border-white/10 bg-white/[.02] hover:border-white/20'}`}
                           >
                             <div className="flex items-center gap-2 font-black"><Layers3 className="h-4 w-4" /> 4 Stems</div>
                             <p className="mt-2 text-xs leading-5 text-slate-500">Vocals, Drums, Bass, Other.</p>
@@ -276,56 +477,40 @@ function App() {
                         onClick={start}
                         className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-indigo-500 to-cyan-500 px-5 py-4 text-sm font-black text-white shadow-lg shadow-indigo-950/50 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <Sparkles className="h-4 w-4" />
-                        {busy ? 'جاري رفع الملف...' : 'بدء الفصل بالذكاء الاصطناعي'}
+                        <Sparkles className="h-4 w-4" /> {busy ? 'جاري رفع الملف...' : 'بدء الفصل بالذكاء الاصطناعي'}
                       </button>
                     </>
                   )}
 
                   {job && job.status !== 'completed' && (
-                    <div className="mt-6 rounded-2xl border border-white/10 bg-black/15 p-5" aria-live="polite">
+                    <div className="mt-6 rounded-2xl border border-white/10 bg-black/15 p-5">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
+                        <div>
                           <div className="flex items-center gap-2 text-sm font-black">
-                            <Activity className="h-4 w-4 shrink-0 animate-pulse text-cyan-300" />
-                            <span>{stageLabel(job.stage)}</span>
+                            <Activity className="h-4 w-4 animate-pulse text-cyan-300" />
+                            {stageMeta[job.stage] || 'جاري المعالجة'}
                           </div>
-                          <p className="mt-2 text-xs leading-5 text-slate-400">{job.message}</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">{job.message}</p>
                         </div>
-                        <span className="shrink-0 text-sm font-black tabular-nums text-cyan-300">{job.progress}%</span>
+                        <span className="text-sm font-black tabular-nums text-cyan-300">{job.progress}%</span>
                       </div>
-
                       <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5">
                         <div
                           className="h-full rounded-full bg-gradient-to-l from-indigo-500 to-cyan-400 transition-all duration-700"
                           style={{ width: `${job.progress}%` }}
                         />
                       </div>
-
-                      <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px]">
-                        <span className="rounded-full border border-white/10 bg-white/[.035] px-3 py-1.5 text-slate-400">
-                          الوقت المنقضي <b className="mr-1 tabular-nums text-slate-200">{formatDuration(job.elapsed_seconds)}</b>
-                        </span>
-                        <span className="rounded-full border border-cyan-300/10 bg-cyan-300/[.04] px-3 py-1.5 text-cyan-200/80">
-                          المعالجة مستمرة على CPU
-                        </span>
+                      <div className="mt-4 flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" /> الوقت المنقضي {formatTime(job.elapsed_seconds || 0)}</span>
+                        <span>CPU Processing</span>
                       </div>
-
-                      <p className="mt-3 text-[11px] leading-5 text-slate-600">
-                        النسبة تُحدّث من تقدم محرك Demucs أثناء تحليل الملف، وقد تختلف السرعة حسب مدة الصوت وحجم موارد Railway.
-                      </p>
                     </div>
                   )}
 
                   {job?.status === 'completed' && (
                     <div className="mt-6 rounded-2xl border border-emerald-300/15 bg-emerald-300/[.05] p-4 text-sm font-bold text-emerald-200">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-5 w-5" />
-                        <span>اكتملت عملية الفصل. المسارات جاهزة بالأسفل.</span>
-                      </div>
-                      <p className="mt-2 pr-8 text-xs font-normal text-emerald-200/60">
-                        زمن المعالجة: {formatDuration(job.elapsed_seconds)}
-                      </p>
+                      <div className="flex items-center gap-3"><CheckCircle2 className="h-5 w-5" /> اكتملت عملية الفصل.</div>
+                      <p className="mt-2 text-xs font-normal text-emerald-100/60">الزمن الإجمالي: {formatTime(job.elapsed_seconds || 0)}</p>
                     </div>
                   )}
                 </div>
@@ -334,11 +519,7 @@ function App() {
           </div>
         </section>
 
-        {error && (
-          <div className="mb-8 rounded-2xl border border-rose-300/15 bg-rose-400/[.06] px-5 py-4 text-sm text-rose-200">
-            {error}
-          </div>
-        )}
+        {error && <div className="mb-8 rounded-2xl border border-rose-300/15 bg-rose-400/[.06] px-5 py-4 text-sm text-rose-200">{error}</div>}
 
         {job?.status === 'completed' && stems.length > 0 && (
           <section className="pb-14">
@@ -393,36 +574,22 @@ function StemCard({ stem, url }: { stem: StemName; url: string }) {
             <p className="mt-1 text-[11px] uppercase tracking-[.14em] text-slate-600">{stem}</p>
           </div>
         </div>
-        <a
-          href={url}
-          download
-          className="rounded-xl border border-white/10 p-2.5 text-slate-400 transition hover:border-cyan-300/30 hover:text-cyan-200"
-          title="تنزيل"
-        >
+        <a href={url} download className="rounded-xl border border-white/10 p-2.5 text-slate-400 transition hover:border-cyan-300/30 hover:text-cyan-200" title="تنزيل">
           <Download className="h-4 w-4" />
         </a>
       </div>
-
       <div className="mt-5 flex items-center gap-3">
-        <button
-          onClick={toggle}
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-slate-950 transition hover:bg-cyan-100"
-        >
+        <button onClick={toggle} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-slate-950 transition hover:bg-cyan-100">
           {playing ? <Pause className="h-4 w-4" fill="currentColor" /> : <Play className="h-4 w-4" fill="currentColor" />}
         </button>
         <div className="relative h-11 flex-1 overflow-hidden rounded-xl border border-white/10 bg-black/20 px-3">
           <div className="flex h-full items-center gap-[3px] opacity-50">
             {Array.from({ length: 34 }).map((_, i) => (
-              <span
-                key={i}
-                className="w-1 rounded-full bg-gradient-to-t from-indigo-400 to-cyan-300"
-                style={{ height: `${20 + ((i * 17) % 65)}%` }}
-              />
+              <span key={i} className="w-1 rounded-full bg-gradient-to-t from-indigo-400 to-cyan-300" style={{ height: `${20 + ((i * 17) % 65)}%` }} />
             ))}
           </div>
         </div>
       </div>
-
       <div className="mt-4 flex items-center gap-3">
         <Volume2 className="h-4 w-4 text-slate-500" />
         <input
