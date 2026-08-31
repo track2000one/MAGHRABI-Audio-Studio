@@ -19,7 +19,16 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY backend/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Railway is CPU-only. Pin a mutually compatible PyTorch / TorchAudio / TorchCodec
+# stack from the official CPU wheel index so Demucs can save WAV stems reliably.
+RUN pip install --no-cache-dir \
+      torch==2.8.0 \
+      torchaudio==2.8.0 \
+      torchcodec==0.7.0 \
+      --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt
+
 COPY backend/app ./app
 COPY --from=frontend-builder /frontend/dist ./static
 RUN mkdir -p /data/.cache/torch
