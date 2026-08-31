@@ -20,12 +20,12 @@ RUN apt-get update \
 WORKDIR /app
 COPY backend/requirements.txt ./requirements.txt
 
-# Railway is CPU-only. Pin a mutually compatible PyTorch / TorchAudio / TorchCodec
+# Railway is CPU-only. Pin a mutually compatible PyTorch / TorchAudio
 # stack from the official CPU wheel index so Demucs can save WAV stems reliably.
+# torchcodec is CUDA-only and not needed for Demucs functionality.
 RUN pip install --no-cache-dir \
       torch==2.8.0 \
       torchaudio==2.8.0 \
-      torchcodec==0.7.0 \
       --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 
@@ -35,3 +35,4 @@ RUN mkdir -p /data/.cache/torch
 
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+
