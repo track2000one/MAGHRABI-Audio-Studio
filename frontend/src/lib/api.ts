@@ -6,7 +6,9 @@ export interface JobResponse {
   mode: '2stems' | '4stems'
   status: 'queued' | 'processing' | 'completed' | 'failed'
   progress: number
+  stage: 'queued' | 'loading_model' | 'separating' | 'finalizing' | 'completed' | 'failed' | string
   message: string
+  elapsed_seconds: number
   stems: Partial<Record<StemName, string>>
   error?: string | null
 }
