@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import threading
+import time
 import uuid
+from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Literal
@@ -28,7 +31,7 @@ executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="audio
 store_lock = threading.Lock()
 active_lock = threading.Lock()
 active_jobs: set[str] = set()
-app = FastAPI(title="MAGHRABI Audio Studio API", version="0.1.1")
+app = FastAPI(title="MAGHRABI Audio Studio API", version="0.2.0")
 
 
 class JobResponse(BaseModel):
@@ -37,7 +40,9 @@ class JobResponse(BaseModel):
     mode: Literal["2stems", "4stems"]
     status: Literal["queued", "processing", "completed", "failed"]
     progress: int
+    stage: str = "queued"
     message: str
+    elapsed_seconds: int = 0
     stems: dict[str, str]
     error: str | None = None
 
@@ -74,14 +79,104 @@ def update_state(job_id: str, **changes) -> dict:
     return state
 
 
+def elapsed_seconds_for(state: dict) -> int:
+    if state.get("status") in {"completed", "failed"}:
+        return int(state.get("elapsed_seconds", 0) or 0)
+    started_at = state.get("started_at")
+    if isinstance(started_at, (int, float)):
+        return max(0, int(time.time() - started_at))
+    return 0
+
+
 def public_state(state: dict) -> dict:
     public = dict(state)
     public.pop("input_path", None)
+    public.pop("started_at", None)
+    public["elapsed_seconds"] = elapsed_seconds_for(state)
+    public.setdefault("stage", "queued")
     public["stems"] = {
         name: f"/api/jobs/{state['id']}/files/{Path(path).name}"
         for name, path in state.get("stems", {}).items()
     }
     return public
+
+
+def finish_timing(state: dict) -> int:
+    started_at = state.get("started_at")
+    if isinstance(started_at, (int, float)):
+        return max(0, int(time.time() - started_at))
+    return int(state.get("elapsed_seconds", 0) or 0)
+
+
+def extract_demucs_percent(line: str) -> int | None:
+    match = re.search(r"(?<!\d)(\d{1,3})%\|", line)
+    if not match:
+        match = re.search(r"(?<!\d)(\d{1,3})%", line)
+    if not match:
+        return None
+    return max(0, min(100, int(match.group(1))))
+
+
+def run_demucs_with_progress(job_id: str, command: list[str]) -> tuple[int, str]:
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    if process.stdout is None:
+        raise RuntimeError("تعذر قراءة مخرجات محرك Demucs.")
+
+    tail: deque[str] = deque(maxlen=40)
+    buffer = ""
+    last_mapped_progress = 24
+    last_demucs_percent = -1
+
+    def handle_line(raw_line: str) -> None:
+        nonlocal last_mapped_progress, last_demucs_percent
+        line = raw_line.strip()
+        if not line:
+            return
+        tail.append(line)
+        print(f"[demucs:{job_id}] {line}", flush=True)
+
+        demucs_percent = extract_demucs_percent(line)
+        if demucs_percent is None or demucs_percent <= last_demucs_percent:
+            return
+
+        last_demucs_percent = demucs_percent
+        mapped_progress = min(88, 25 + round(demucs_percent * 0.63))
+        if mapped_progress <= last_mapped_progress:
+            return
+
+        last_mapped_progress = mapped_progress
+        update_state(
+            job_id,
+            status="processing",
+            stage="separating",
+            progress=mapped_progress,
+            message=f"جاري فصل المسارات وتحليل الصوت — تقدم المحرك {demucs_percent}%.",
+        )
+
+    while True:
+        char = process.stdout.read(1)
+        if char == "":
+            if process.poll() is not None:
+                break
+            time.sleep(0.05)
+            continue
+        if char in "\r\n":
+            handle_line(buffer)
+            buffer = ""
+        else:
+            buffer += char
+
+    if buffer:
+        handle_line(buffer)
+
+    return_code = process.wait()
+    return return_code, "\n".join(tail)
 
 
 def run_separation(job_id: str) -> None:
@@ -92,6 +187,7 @@ def run_separation(job_id: str) -> None:
         if not input_path.exists():
             raise RuntimeError("الملف الأصلي للمهمة غير موجود.")
 
+        started_at = time.time()
         output_root = job_dir(job_id) / "demucs"
         exports_dir = job_dir(job_id) / "stems"
         exports_dir.mkdir(parents=True, exist_ok=True)
@@ -99,7 +195,10 @@ def run_separation(job_id: str) -> None:
         update_state(
             job_id,
             status="processing",
+            stage="loading_model",
             progress=10,
+            started_at=started_at,
+            elapsed_seconds=0,
             message="يتم تشغيل محرك العزل وتجهيز نموذج الذكاء الاصطناعي...",
             error=None,
         )
@@ -119,25 +218,25 @@ def run_separation(job_id: str) -> None:
 
         update_state(
             job_id,
+            stage="separating",
             progress=25,
-            message="جاري تحليل الملف وفصل المسارات. أول عملية قد تستغرق وقتاً لتنزيل نموذج الذكاء الاصطناعي...",
+            message="بدأ تحليل الصوت وفصل المسارات. سيظهر التقدم تلقائياً أثناء المعالجة...",
         )
         print(f"[worker] running Demucs for {job_id}: {' '.join(command)}", flush=True)
 
-        process = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            check=False,
+        return_code, output_tail = run_demucs_with_progress(job_id, command)
+        print(f"[worker] Demucs exit code for {job_id}: {return_code}", flush=True)
+
+        if return_code != 0:
+            raise RuntimeError(output_tail or "Demucs exited with an unknown error")
+
+        update_state(
+            job_id,
+            stage="finalizing",
+            progress=90,
+            message="اكتمل تحليل الصوت، ويتم الآن تجهيز ملفات المسارات للمعاينة والتحميل...",
         )
-        print(f"[worker] Demucs exit code for {job_id}: {process.returncode}", flush=True)
 
-        if process.returncode != 0:
-            tail = "\n".join(process.stdout.splitlines()[-30:])
-            raise RuntimeError(tail or "Demucs exited with an unknown error")
-
-        update_state(job_id, progress=90, message="يتم تجهيز ملفات المسارات للمعاينة والتحميل...")
         expected = (
             ["vocals", "no_vocals"]
             if state["mode"] == "2stems"
@@ -156,10 +255,13 @@ def run_separation(job_id: str) -> None:
         if not stems:
             raise RuntimeError("لم يتم العثور على المسارات الناتجة بعد انتهاء Demucs.")
 
+        final_state = read_state(job_id)
         update_state(
             job_id,
             status="completed",
+            stage="completed",
             progress=100,
+            elapsed_seconds=finish_timing(final_state),
             message="اكتملت عملية الفصل بنجاح.",
             stems=stems,
             error=None,
@@ -168,10 +270,13 @@ def run_separation(job_id: str) -> None:
     except Exception as exc:
         print(f"[worker] job {job_id} failed: {exc}", flush=True)
         try:
+            failure_state = read_state(job_id)
             update_state(
                 job_id,
                 status="failed",
+                stage="failed",
                 progress=100,
+                elapsed_seconds=finish_timing(failure_state),
                 message="فشلت عملية الفصل.",
                 error=str(exc)[-4000:],
             )
@@ -189,10 +294,13 @@ def _job_finished(job_id: str, future: Future) -> None:
     if exception:
         print(f"[worker] unhandled future error for {job_id}: {exception}", flush=True)
         try:
+            failure_state = read_state(job_id)
             update_state(
                 job_id,
                 status="failed",
+                stage="failed",
                 progress=100,
+                elapsed_seconds=finish_timing(failure_state),
                 message="تعذر تشغيل عامل معالجة الصوت.",
                 error=str(exception)[-4000:],
             )
@@ -211,7 +319,10 @@ def submit_job(job_id: str, *, recovered: bool = False) -> bool:
             update_state(
                 job_id,
                 status="queued",
+                stage="queued",
                 progress=6,
+                started_at=None,
+                elapsed_seconds=0,
                 message="تمت استعادة المهمة بعد إعادة تشغيل الخدمة، وسيبدأ العزل تلقائياً...",
                 error=None,
             )
@@ -259,6 +370,7 @@ def health() -> dict:
         "worker": "ready",
         "active_jobs": active,
         "max_workers": MAX_WORKERS,
+        "api_version": "0.2.0",
     }
 
 
@@ -297,9 +409,12 @@ async def create_job(
         "original_name": original_name,
         "mode": mode,
         "status": "queued",
+        "stage": "queued",
         "progress": 5,
         "message": "تم رفع الملف وإضافته إلى قائمة المعالجة.",
         "input_path": str(input_path),
+        "started_at": None,
+        "elapsed_seconds": 0,
         "stems": {},
         "error": None,
     }
@@ -311,6 +426,7 @@ async def create_job(
         update_state(
             job_id,
             status="failed",
+            stage="failed",
             progress=100,
             message="تعذر تشغيل عامل معالجة الصوت.",
             error=str(exc)[-4000:],
