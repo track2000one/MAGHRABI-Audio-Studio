@@ -20,6 +20,7 @@ import {
   OutputFormat,
   trimAudio,
 } from './lib/toolsApi'
+import WaveformTrimEditor from './WaveformTrimEditor'
 
 type Tool = 'trim' | 'merge' | 'enhance' | 'convert'
 
@@ -29,7 +30,7 @@ type ResultFile = {
 }
 
 const toolCards: Array<{ id: Tool; title: string; subtitle: string; icon: typeof Scissors }> = [
-  { id: 'trim', title: 'قص الصوت', subtitle: 'حدد البداية والنهاية مع Fade احترافي', icon: Scissors },
+  { id: 'trim', title: 'قص الصوت', subtitle: 'Waveform مرن مع تحديد بصري وFade', icon: Scissors },
   { id: 'merge', title: 'دمج الملفات', subtitle: 'ادمج عدة مقاطع بالترتيب في ملف واحد', icon: Layers3 },
   { id: 'enhance', title: 'تحسين الصوت', subtitle: 'تنقية، ضغط ديناميكي وNormalize', icon: Sparkles },
   { id: 'convert', title: 'تحويل الصيغة', subtitle: 'MP3 · WAV · M4A · FLAC', icon: FileAudio },
@@ -146,7 +147,20 @@ export default function AudioTools() {
   const chooseTool = (next: Tool) => {
     setTool(next)
     setFiles([])
+    setStart(0)
+    setEnd(30)
     setError(null)
+    if (result?.url) URL.revokeObjectURL(result.url)
+    setResult(null)
+  }
+
+  const selectFiles = (nextFiles: File[]) => {
+    setFiles(nextFiles)
+    setError(null)
+    if (tool === 'trim') {
+      setStart(0)
+      setEnd(30)
+    }
     if (result?.url) URL.revokeObjectURL(result.url)
     setResult(null)
   }
@@ -155,6 +169,10 @@ export default function AudioTools() {
     event.preventDefault()
     if (!files.length) {
       setError('اختر الملف الصوتي أولًا.')
+      return
+    }
+    if (tool === 'trim' && end <= start) {
+      setError('حدد منطقة قص صحيحة من الـWaveform.')
       return
     }
     setBusy(true)
@@ -232,20 +250,39 @@ export default function AudioTools() {
           </div>
         </section>
 
-        <section className="grid gap-6 pb-12 lg:grid-cols-[.9fr_1.1fr]">
+        <section className={`grid gap-6 pb-12 ${tool === 'trim' ? 'xl:grid-cols-[1.25fr_.75fr]' : 'lg:grid-cols-[.9fr_1.1fr]'}`}>
           <div className="rounded-[28px] border border-white/10 bg-white/[.035] p-5 sm:p-6">
             <div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-400/10 text-indigo-200"><Icon className="h-5 w-5" /></div><div><h2 className="font-black">{current.title}</h2><p className="mt-1 text-xs text-slate-500">{current.subtitle}</p></div></div>
 
             <form onSubmit={run} className="mt-6 space-y-5">
-              <FilePicker multiple={tool === 'merge'} files={files} onChange={setFiles} />
+              <FilePicker multiple={tool === 'merge'} files={files} onChange={selectFiles} />
+
+              {tool === 'trim' && files[0] && (
+                <WaveformTrimEditor
+                  file={files[0]}
+                  start={start}
+                  end={end}
+                  onSelectionChange={(nextStart, nextEnd) => {
+                    setStart(nextStart)
+                    setEnd(nextEnd)
+                  }}
+                />
+              )}
 
               {tool === 'trim' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <NumberField label="البداية بالثواني" value={start} onChange={setStart} />
-                  <NumberField label="النهاية بالثواني" value={end} onChange={setEnd} />
-                  <NumberField label="Fade In" value={fadeIn} onChange={setFadeIn} />
-                  <NumberField label="Fade Out" value={fadeOut} onChange={setFadeOut} />
-                </div>
+                <>
+                  <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                    <p className="mb-3 text-xs font-black text-slate-300">ضبط دقيق للتحديد</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <NumberField label="البداية · ثانية" value={start} onChange={setStart} step={0.01} />
+                      <NumberField label="النهاية · ثانية" value={end} onChange={setEnd} step={0.01} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <NumberField label="Fade In" value={fadeIn} onChange={setFadeIn} />
+                    <NumberField label="Fade Out" value={fadeOut} onChange={setFadeOut} />
+                  </div>
+                </>
               )}
 
               {tool === 'enhance' && (
@@ -262,9 +299,9 @@ export default function AudioTools() {
 
               {error && <div className="rounded-2xl border border-rose-300/15 bg-rose-400/[.06] px-4 py-3 text-xs leading-6 text-rose-200">{error}</div>}
 
-              <button disabled={busy || !files.length || (tool === 'merge' && files.length < 2)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-indigo-500 to-cyan-500 px-5 py-4 text-sm font-black shadow-lg shadow-indigo-950/40 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+              <button disabled={busy || !files.length || (tool === 'merge' && files.length < 2) || (tool === 'trim' && end <= start)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-indigo-500 to-cyan-500 px-5 py-4 text-sm font-black shadow-lg shadow-indigo-950/40 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
                 {busy ? <Activity className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {busy ? 'جاري المعالجة...' : 'تنفيذ العملية'}
+                {busy ? 'جاري المعالجة...' : tool === 'trim' ? 'قص الجزء المحدد' : 'تنفيذ العملية'}
               </button>
             </form>
           </div>
@@ -283,7 +320,7 @@ export default function AudioTools() {
             )}
 
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-white/[.02] p-4"><p className="text-xs font-black">Fast Processing</p><p className="mt-2 text-[11px] leading-5 text-slate-600">لا يحتاج GPU ولا ينتظر محرك الفصل.</p></div>
+              <div className="rounded-2xl border border-white/10 bg-white/[.02] p-4"><p className="text-xs font-black">Visual Editing</p><p className="mt-2 text-[11px] leading-5 text-slate-600">حدد منطقة القص مباشرة من الموجة الصوتية.</p></div>
               <div className="rounded-2xl border border-white/10 bg-white/[.02] p-4"><p className="text-xs font-black">Lossless Option</p><p className="mt-2 text-[11px] leading-5 text-slate-600">WAV وFLAC للجودة العالية.</p></div>
               <div className="rounded-2xl border border-white/10 bg-white/[.02] p-4"><p className="text-xs font-black">Private Session</p><p className="mt-2 text-[11px] leading-5 text-slate-600">الأدوات محمية بجلسة الدخول نفسها.</p></div>
             </div>
