@@ -18,6 +18,8 @@ RUN apt-get update \
        ffmpeg \
        libsndfile1 \
        build-essential \
+       fontconfig \
+       fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -34,7 +36,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
 
 COPY backend/app ./app
 COPY --from=frontend-builder /frontend/dist ./static
-RUN mkdir -p /data/.cache/torch /data/tools
+RUN mkdir -p /data/.cache/torch /data/tools /data/video
 
 EXPOSE 8000
 CMD ["sh", "-c", "python -m app.prestart && uvicorn app.entry:app --host 0.0.0.0 --port ${PORT:-8000}"]
