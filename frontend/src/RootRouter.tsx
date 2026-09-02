@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { SlidersHorizontal } from 'lucide-react'
+import { SlidersHorizontal, Video } from 'lucide-react'
 import App from './App'
 import AudioTools from './AudioTools'
+import VideoStudio from './VideoStudio'
 import { getAuthStatus } from './lib/api'
 
 export default function RootRouter() {
@@ -26,18 +27,28 @@ export default function RootRouter() {
   }, [])
 
   if (route === '#tools') return <AudioTools />
+  if (route === '#video') return <VideoStudio />
 
   return (
     <>
       <App />
       {authenticated && (
-        <a
-          href="#tools"
-          className="fixed bottom-5 left-5 z-50 inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]"
-        >
-          <SlidersHorizontal className="h-4 w-4 text-cyan-300" />
-          أدوات الصوت
-        </a>
+        <div className="fixed bottom-5 left-5 z-50 flex flex-col gap-2 sm:flex-row">
+          <a
+            href="#video"
+            className="inline-flex items-center gap-2 rounded-2xl border border-violet-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-violet-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-violet-300/40 hover:bg-[#101a2b]"
+          >
+            <Video className="h-4 w-4 text-violet-300" />
+            Video Studio
+          </a>
+          <a
+            href="#tools"
+            className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]"
+          >
+            <SlidersHorizontal className="h-4 w-4 text-cyan-300" />
+            أدوات الصوت
+          </a>
+        </div>
       )}
     </>
   )
