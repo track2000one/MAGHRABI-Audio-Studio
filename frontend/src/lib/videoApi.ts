@@ -99,6 +99,21 @@ export type PersistentRenderJobV12 = {
   resultReady: boolean
 }
 
+export type PersistentProxyJobV13 = {
+  id: string
+  name: string
+  sourceName: string
+  status: 'queued' | 'processing' | 'done' | 'failed'
+  progress: number
+  profile: '540p' | '720p'
+  createdAt: string
+  startedAt?: string | null
+  finishedAt?: string | null
+  message?: string | null
+  error?: string | null
+  resultReady: boolean
+}
+
 export type SilenceInterval = { start: number; end: number; duration: number }
 export type SilenceDetectionResult = { duration: number; intervals: SilenceInterval[]; totalSilence: number; thresholdDb: number; minDuration: number }
 export type VideoWaveformResult = { duration: number; peaks: number[] }
@@ -178,6 +193,40 @@ export async function retryVideoRenderJobV12(jobId: string): Promise<PersistentR
 
 export async function deleteVideoRenderJobV12(jobId: string) {
   const response = await fetch(`/api/video/v12/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE', credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.json()
+}
+
+export async function enqueueVideoProxyV13(file: File, profile: '540p' | '720p' = '540p'): Promise<PersistentProxyJobV13> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('profile', profile)
+  const response = await fetch('/api/video/v13/proxy-queue', { method: 'POST', body: form, credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.json()
+}
+
+export async function listVideoProxyJobsV13(): Promise<PersistentProxyJobV13[]> {
+  const response = await fetch('/api/video/v13/proxy-jobs', { credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  const payload = await response.json()
+  return Array.isArray(payload.jobs) ? payload.jobs : []
+}
+
+export async function getVideoProxyResultV13(jobId: string) {
+  const response = await fetch(`/api/video/v13/proxy-jobs/${encodeURIComponent(jobId)}/result`, { credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.blob()
+}
+
+export async function retryVideoProxyJobV13(jobId: string): Promise<PersistentProxyJobV13> {
+  const response = await fetch(`/api/video/v13/proxy-jobs/${encodeURIComponent(jobId)}/retry`, { method: 'POST', credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.json()
+}
+
+export async function deleteVideoProxyJobV13(jobId: string) {
+  const response = await fetch(`/api/video/v13/proxy-jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE', credentials: 'include' })
   if (!response.ok) throw await responseError(response)
   return response.json()
 }
