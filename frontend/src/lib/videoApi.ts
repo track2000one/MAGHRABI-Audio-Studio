@@ -81,6 +81,23 @@ export type VideoProjectManifestV8 = VideoProjectManifestV7
 export type VideoProjectManifestV9 = VideoProjectManifestV8
 export type VideoProjectManifestV10 = VideoProjectManifestV9
 export type VideoProjectManifestV11 = VideoProjectManifestV10
+export type VideoProjectManifestV12 = VideoProjectManifestV11
+
+export type PersistentRenderJobV12 = {
+  id: string
+  name: string
+  status: 'queued' | 'rendering' | 'done' | 'failed'
+  stage: string
+  progress: number
+  outputSize: OutputSize
+  quality: RenderQuality
+  createdAt: string
+  startedAt?: string | null
+  finishedAt?: string | null
+  message?: string | null
+  error?: string | null
+  resultReady: boolean
+}
 
 export type SilenceInterval = { start: number; end: number; duration: number }
 export type SilenceDetectionResult = { duration: number; intervals: SilenceInterval[]; totalSilence: number; thresholdDb: number; minDuration: number }
@@ -98,7 +115,7 @@ async function renderWithEndpoint(endpoint: string, videoFiles: File[], audioFil
   const response = await fetch(endpoint, { method: 'POST', body: form, credentials: 'include' }); if (!response.ok) throw await responseError(response); return response.blob()
 }
 
-async function renderWithLut(endpoint: string, videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV7 | VideoProjectManifestV8 | VideoProjectManifestV9 | VideoProjectManifestV10 | VideoProjectManifestV11, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) {
+async function renderWithLut(endpoint: string, videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV7 | VideoProjectManifestV8 | VideoProjectManifestV9 | VideoProjectManifestV10 | VideoProjectManifestV11 | VideoProjectManifestV12, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) {
   const form = new FormData()
   videoFiles.forEach((file) => form.append('video_files', file)); audioFiles.forEach((file) => form.append('audio_files', file)); imageFiles.forEach((file) => form.append('image_files', file))
   if (lutFile) form.append('lut_file', lutFile)
@@ -121,6 +138,49 @@ export function renderVideoProjectV8(videoFiles: File[], audioFiles: File[], ima
 export function renderVideoProjectV9(videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV9, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) { return renderWithLut('/api/video/v9/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile) }
 export function renderVideoProjectV10(videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV10, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) { return renderWithLut('/api/video/v10/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile) }
 export function renderVideoProjectV11(videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV11, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) { return renderWithLut('/api/video/v11/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile) }
+
+export async function enqueueVideoProjectV12(
+  videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV12,
+  outputSize: OutputSize, quality: RenderQuality, name: string, lutFile?: File | null,
+): Promise<PersistentRenderJobV12> {
+  const form = new FormData()
+  videoFiles.forEach((file) => form.append('video_files', file))
+  audioFiles.forEach((file) => form.append('audio_files', file))
+  imageFiles.forEach((file) => form.append('image_files', file))
+  if (lutFile) form.append('lut_file', lutFile)
+  form.append('manifest', JSON.stringify(manifest))
+  form.append('output_size', outputSize)
+  form.append('quality', quality)
+  form.append('name', name || 'MAGHRABI V12 Render')
+  const response = await fetch('/api/video/v12/queue', { method: 'POST', body: form, credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.json()
+}
+
+export async function listVideoRenderJobsV12(): Promise<PersistentRenderJobV12[]> {
+  const response = await fetch('/api/video/v12/jobs', { credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  const payload = await response.json()
+  return Array.isArray(payload.jobs) ? payload.jobs : []
+}
+
+export async function getVideoRenderResultV12(jobId: string) {
+  const response = await fetch(`/api/video/v12/jobs/${encodeURIComponent(jobId)}/result`, { credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.blob()
+}
+
+export async function retryVideoRenderJobV12(jobId: string): Promise<PersistentRenderJobV12> {
+  const response = await fetch(`/api/video/v12/jobs/${encodeURIComponent(jobId)}/retry`, { method: 'POST', credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.json()
+}
+
+export async function deleteVideoRenderJobV12(jobId: string) {
+  const response = await fetch(`/api/video/v12/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE', credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.json()
+}
 
 export async function extractVideoAudio(file: File) {
   const form = new FormData()
