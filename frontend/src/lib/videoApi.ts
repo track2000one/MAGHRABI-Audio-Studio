@@ -14,6 +14,11 @@ export type TransformKeyframe = {
   easing?: TransformEasing
 }
 
+export type AudioAutomationPoint = {
+  time: number
+  gain: number
+}
+
 export type VideoClipManifest = {
   fileIndex: number
   start: number
@@ -55,6 +60,10 @@ export type VideoClipManifest = {
   transformKeyframes?: TransformKeyframe[]
   audioLead?: number
   audioTail?: number
+  audioFadeIn?: number
+  audioFadeOut?: number
+  audioAutomation?: AudioAutomationPoint[]
+  groupId?: string | null
 }
 
 export type TextTrackManifest = {
@@ -83,6 +92,7 @@ export type AudioTrackManifest = {
   volume: number
   fadeIn: number
   fadeOut: number
+  automation?: AudioAutomationPoint[]
 }
 
 export type ImageTrackManifest = {
@@ -142,6 +152,7 @@ export type VideoProjectManifestV7 = VideoProjectManifestV5 & {
 }
 
 export type VideoProjectManifestV8 = VideoProjectManifestV7
+export type VideoProjectManifestV9 = VideoProjectManifestV8
 
 export type SilenceInterval = {
   start: number
@@ -197,7 +208,7 @@ async function renderWithLut(
   videoFiles: File[],
   audioFiles: File[],
   imageFiles: File[],
-  manifest: VideoProjectManifestV7 | VideoProjectManifestV8,
+  manifest: VideoProjectManifestV7 | VideoProjectManifestV8 | VideoProjectManifestV9,
   outputSize: OutputSize,
   quality: RenderQuality,
   lutFile?: File | null,
@@ -278,6 +289,13 @@ export function renderVideoProjectV8(
   outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null,
 ) {
   return renderWithLut('/api/video/v8/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile)
+}
+
+export function renderVideoProjectV9(
+  videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV9,
+  outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null,
+) {
+  return renderWithLut('/api/video/v9/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile)
 }
 
 export async function createVideoProxy(file: File) {
