@@ -5,6 +5,13 @@ export type VideoTransition = 'none' | 'fade' | 'fadeblack' | 'fadewhite' | 'dis
 export type SpeedRampPreset = 'off' | 'montage' | 'hero' | 'bullet' | 'flash'
 export type PrivacyEffect = 'none' | 'blur' | 'mosaic'
 
+export type TransformKeyframe = {
+  time: number
+  zoom: number
+  panX: number
+  panY: number
+}
+
 export type VideoClipManifest = {
   fileIndex: number
   start: number
@@ -43,6 +50,7 @@ export type VideoClipManifest = {
   privacyWidth?: number
   privacyHeight?: number
   privacyIntensity?: number
+  transformKeyframes?: TransformKeyframe[]
 }
 
 export type TextTrackManifest = {
@@ -123,6 +131,10 @@ export type VideoProjectManifestV5 = VideoProjectManifestV3 & {
   videoOverlays: VideoOverlayTrackManifest[]
   audioDuckingEnabled: boolean
   duckingStrength: number
+}
+
+export type VideoProjectManifestV7 = VideoProjectManifestV5 & {
+  magneticSnap: boolean
 }
 
 export type SilenceInterval = {
@@ -218,6 +230,36 @@ export function renderVideoProjectV6(
   outputSize: OutputSize, quality: RenderQuality,
 ) {
   return renderWithEndpoint('/api/video/v6/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality)
+}
+
+export async function renderVideoProjectV7(
+  videoFiles: File[],
+  audioFiles: File[],
+  imageFiles: File[],
+  manifest: VideoProjectManifestV7,
+  outputSize: OutputSize,
+  quality: RenderQuality,
+  lutFile?: File | null,
+) {
+  const form = new FormData()
+  videoFiles.forEach((file) => form.append('video_files', file))
+  audioFiles.forEach((file) => form.append('audio_files', file))
+  imageFiles.forEach((file) => form.append('image_files', file))
+  if (lutFile) form.append('lut_file', lutFile)
+  form.append('manifest', JSON.stringify(manifest))
+  form.append('output_size', outputSize)
+  form.append('quality', quality)
+  const response = await fetch('/api/video/v7/render', { method: 'POST', body: form, credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.blob()
+}
+
+export async function createVideoProxy(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch('/api/video/v7/proxy', { method: 'POST', body: form, credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.blob()
 }
 
 export async function detectVideoSilence(file: File, thresholdDb = -35, minDuration = .5): Promise<SilenceDetectionResult> {
