@@ -80,6 +80,7 @@ export type VideoProjectManifestV7 = VideoProjectManifestV5 & { magneticSnap: bo
 export type VideoProjectManifestV8 = VideoProjectManifestV7
 export type VideoProjectManifestV9 = VideoProjectManifestV8
 export type VideoProjectManifestV10 = VideoProjectManifestV9
+export type VideoProjectManifestV11 = VideoProjectManifestV10
 
 export type SilenceInterval = { start: number; end: number; duration: number }
 export type SilenceDetectionResult = { duration: number; intervals: SilenceInterval[]; totalSilence: number; thresholdDb: number; minDuration: number }
@@ -97,7 +98,7 @@ async function renderWithEndpoint(endpoint: string, videoFiles: File[], audioFil
   const response = await fetch(endpoint, { method: 'POST', body: form, credentials: 'include' }); if (!response.ok) throw await responseError(response); return response.blob()
 }
 
-async function renderWithLut(endpoint: string, videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV7 | VideoProjectManifestV8 | VideoProjectManifestV9 | VideoProjectManifestV10, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) {
+async function renderWithLut(endpoint: string, videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV7 | VideoProjectManifestV8 | VideoProjectManifestV9 | VideoProjectManifestV10 | VideoProjectManifestV11, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) {
   const form = new FormData()
   videoFiles.forEach((file) => form.append('video_files', file)); audioFiles.forEach((file) => form.append('audio_files', file)); imageFiles.forEach((file) => form.append('image_files', file))
   if (lutFile) form.append('lut_file', lutFile)
@@ -119,6 +120,7 @@ export function renderVideoProjectV7(videoFiles: File[], audioFiles: File[], ima
 export function renderVideoProjectV8(videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV8, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) { return renderWithLut('/api/video/v8/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile) }
 export function renderVideoProjectV9(videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV9, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) { return renderWithLut('/api/video/v9/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile) }
 export function renderVideoProjectV10(videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV10, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) { return renderWithLut('/api/video/v10/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile) }
+export function renderVideoProjectV11(videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV11, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) { return renderWithLut('/api/video/v11/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile) }
 
 export async function createVideoProxy(file: File) { const form = new FormData(); form.append('file', file); const response = await fetch('/api/video/v7/proxy', { method: 'POST', body: form, credentials: 'include' }); if (!response.ok) throw await responseError(response); return response.blob() }
 export async function getVideoWaveform(file: File, bars = 180): Promise<VideoWaveformResult> { const form = new FormData(); form.append('file', file); form.append('bars', String(bars)); const response = await fetch('/api/video/v8/waveform', { method: 'POST', body: form, credentials: 'include' }); if (!response.ok) throw await responseError(response); return response.json() }
