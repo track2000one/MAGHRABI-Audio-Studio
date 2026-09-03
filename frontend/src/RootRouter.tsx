@@ -24,7 +24,10 @@ import VideoStudioV19 from './VideoStudioV19'
 import VideoStudioV20 from './VideoStudioV20'
 import VideoStudioV21 from './VideoStudioV21'
 import VideoStudioV22 from './VideoStudioV22'
+import VideoStudioV23 from './VideoStudioV23'
 import ReviewPortalV22 from './ReviewPortalV22'
+import EnterprisePortalV23 from './EnterprisePortalV23'
+import InviteAcceptV23 from './InviteAcceptV23'
 import { getAuthStatus } from './lib/api'
 
 export default function RootRouter() {
@@ -48,6 +51,11 @@ export default function RootRouter() {
     return () => window.clearInterval(timer)
   }, [])
 
+  if (route.startsWith('#invite=')) {
+    const token = route.slice('#invite='.length)
+    if (token) return <InviteAcceptV23 token={token} />
+  }
+
   if (route.startsWith('#review=')) {
     const raw = route.slice('#review='.length)
     const separator = raw.indexOf(':')
@@ -58,6 +66,7 @@ export default function RootRouter() {
     }
   }
 
+  if (route === '#team') return <EnterprisePortalV23 />
   if (route === '#tools') return <AudioTools />
   if (route === '#video-basic') return <VideoStudio />
   if (route === '#video-v2') return <VideoStudioPro />
@@ -80,7 +89,8 @@ export default function RootRouter() {
   if (route === '#video-v19') return <VideoStudioV19 />
   if (route === '#video-v20') return <VideoStudioV20 />
   if (route === '#video-v21') return <VideoStudioV21 />
-  if (route === '#video') return <VideoStudioV22 />
+  if (route === '#video-v22') return <VideoStudioV22 />
+  if (route === '#video') return <VideoStudioV23 />
 
   return (
     <>
@@ -92,7 +102,7 @@ export default function RootRouter() {
             className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]"
           >
             <Video className="h-4 w-4 text-cyan-300" />
-            Video Studio Creator V22
+            Video Studio Creator V23
           </a>
           <a
             href="#tools"
