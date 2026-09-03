@@ -33,3 +33,6 @@ jobs:
 
       - name: Validate Python syntax
         run: python -m py_compile backend/app/*.py
+
+      - name: Validation complete
+        run: echo "Creator V5 validation completed"
