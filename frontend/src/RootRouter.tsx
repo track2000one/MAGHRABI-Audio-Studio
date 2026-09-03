@@ -12,6 +12,7 @@ import VideoStudioV7 from './VideoStudioV7'
 import VideoStudioV8 from './VideoStudioV8'
 import VideoStudioV9 from './VideoStudioV9'
 import VideoStudioV10 from './VideoStudioV10'
+import VideoStudioV11 from './VideoStudioV11'
 import { getAuthStatus } from './lib/api'
 
 export default function RootRouter() {
@@ -45,7 +46,8 @@ export default function RootRouter() {
   if (route === '#video-v7') return <VideoStudioV7 />
   if (route === '#video-v8') return <VideoStudioV8 />
   if (route === '#video-v9') return <VideoStudioV9 />
-  if (route === '#video') return <VideoStudioV10 />
+  if (route === '#video-v10') return <VideoStudioV10 />
+  if (route === '#video') return <VideoStudioV11 />
 
   return (
     <>
@@ -57,7 +59,7 @@ export default function RootRouter() {
             className="inline-flex items-center gap-2 rounded-2xl border border-violet-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-violet-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-violet-300/40 hover:bg-[#101a2b]"
           >
             <Video className="h-4 w-4 text-violet-300" />
-            Video Studio Creator V10
+            Video Studio Creator V11
           </a>
           <a
             href="#tools"
