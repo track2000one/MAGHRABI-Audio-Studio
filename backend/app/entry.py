@@ -9,6 +9,7 @@ from .video_tools_v4 import router as video_tools_v4_router
 from .video_tools_v5 import router as video_tools_v5_router
 from .video_tools_v6 import router as video_tools_v6_router
 from .video_tools_v7 import router as video_tools_v7_router
+from .video_tools_v8 import router as video_tools_v8_router
 
 # main.py mounts the SPA at "/". Keep that catch-all route last so API
 # endpoints remain reachable before StaticFiles handles the request.
@@ -24,4 +25,5 @@ app.include_router(video_tools_v4_router)
 app.include_router(video_tools_v5_router)
 app.include_router(video_tools_v6_router)
 app.include_router(video_tools_v7_router)
+app.include_router(video_tools_v8_router)
 app.router.routes.extend(static_mounts)
