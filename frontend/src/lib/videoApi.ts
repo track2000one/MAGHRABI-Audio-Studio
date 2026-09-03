@@ -14,6 +14,17 @@ export type VideoClipManifest = {
   textPosition: 'top' | 'center' | 'bottom'
   rotation?: 0 | 90 | 180 | 270
   fit?: 'contain' | 'cover'
+  zoomStart?: number
+  zoomEnd?: number
+  panXStart?: number
+  panXEnd?: number
+  panYStart?: number
+  panYEnd?: number
+  chromaEnabled?: boolean
+  chromaColor?: string
+  chromaBackground?: string
+  chromaSimilarity?: number
+  chromaBlend?: number
 }
 
 export type TextTrackManifest = {
@@ -22,6 +33,16 @@ export type TextTrackManifest = {
   endAt: number
   size: number
   position: 'top' | 'center' | 'bottom'
+}
+
+export type SubtitleTrackManifest = {
+  text: string
+  startAt: number
+  endAt: number
+  size: number
+  position: 'top' | 'center' | 'bottom'
+  color: string
+  boxOpacity: number
 }
 
 export type AudioTrackManifest = {
@@ -41,6 +62,12 @@ export type ImageTrackManifest = {
   scale: number
   opacity: number
   position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
+  startX?: number
+  startY?: number
+  endX?: number
+  endY?: number
+  scaleStart?: number
+  scaleEnd?: number
 }
 
 export type VideoProjectManifest = {
@@ -53,6 +80,10 @@ export type VideoProjectManifestV2 = VideoProjectManifest & {
   textTracks: TextTrackManifest[]
   audioTracks: AudioTrackManifest[]
   imageTracks: ImageTrackManifest[]
+}
+
+export type VideoProjectManifestV3 = VideoProjectManifestV2 & {
+  subtitleTracks: SubtitleTrackManifest[]
 }
 
 async function responseError(response: Response) {
@@ -102,6 +133,31 @@ export async function renderVideoProjectV2(
   form.append('quality', quality)
 
   const response = await fetch('/api/video/v2/render', {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+  })
+  if (!response.ok) throw await responseError(response)
+  return response.blob()
+}
+
+export async function renderVideoProjectV3(
+  videoFiles: File[],
+  audioFiles: File[],
+  imageFiles: File[],
+  manifest: VideoProjectManifestV3,
+  outputSize: OutputSize,
+  quality: RenderQuality,
+) {
+  const form = new FormData()
+  videoFiles.forEach((file) => form.append('video_files', file))
+  audioFiles.forEach((file) => form.append('audio_files', file))
+  imageFiles.forEach((file) => form.append('image_files', file))
+  form.append('manifest', JSON.stringify(manifest))
+  form.append('output_size', outputSize)
+  form.append('quality', quality)
+
+  const response = await fetch('/api/video/v3/render', {
     method: 'POST',
     body: form,
     credentials: 'include',
