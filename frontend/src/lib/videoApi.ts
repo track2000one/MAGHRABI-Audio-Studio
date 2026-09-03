@@ -3,6 +3,7 @@ export type OutputSize = '720p' | '1080p' | 'portrait' | 'square'
 export type RenderQuality = 'draft' | 'standard' | 'high'
 export type VideoTransition = 'none' | 'fade' | 'fadeblack' | 'fadewhite' | 'dissolve' | 'wipeleft' | 'wiperight' | 'slideleft' | 'slideright' | 'smoothleft' | 'smoothright' | 'circleopen' | 'circleclose' | 'pixelize'
 export type SpeedRampPreset = 'off' | 'montage' | 'hero' | 'bullet' | 'flash'
+export type PrivacyEffect = 'none' | 'blur' | 'mosaic'
 
 export type VideoClipManifest = {
   fileIndex: number
@@ -33,6 +34,15 @@ export type VideoClipManifest = {
   temperature?: number
   vignette?: number
   speedRamp?: SpeedRampPreset
+  reverse?: boolean
+  freezeFrame?: boolean
+  freezeDuration?: number
+  privacyEffect?: PrivacyEffect
+  privacyX?: number
+  privacyY?: number
+  privacyWidth?: number
+  privacyHeight?: number
+  privacyIntensity?: number
 }
 
 export type TextTrackManifest = {
@@ -78,6 +88,19 @@ export type ImageTrackManifest = {
   scaleEnd?: number
 }
 
+export type VideoOverlayTrackManifest = {
+  fileIndex: number
+  startAt: number
+  endAt: number
+  sourceStart: number
+  sourceEnd: number
+  scale: number
+  opacity: number
+  x: number
+  y: number
+  borderRadius?: number
+}
+
 export type VideoProjectManifest = {
   clips: VideoClipManifest[]
   transition: VideoTransition
@@ -92,6 +115,12 @@ export type VideoProjectManifestV2 = VideoProjectManifest & {
 
 export type VideoProjectManifestV3 = VideoProjectManifestV2 & {
   subtitleTracks: SubtitleTrackManifest[]
+}
+
+export type VideoProjectManifestV5 = VideoProjectManifestV3 & {
+  videoOverlays: VideoOverlayTrackManifest[]
+  audioDuckingEnabled: boolean
+  duckingStrength: number
 }
 
 export type SilenceInterval = {
@@ -122,7 +151,7 @@ async function renderWithEndpoint(
   videoFiles: File[],
   audioFiles: File[],
   imageFiles: File[],
-  manifest: VideoProjectManifestV3,
+  manifest: VideoProjectManifestV3 | VideoProjectManifestV5,
   outputSize: OutputSize,
   quality: RenderQuality,
 ) {
@@ -173,6 +202,13 @@ export function renderVideoProjectV4(
   outputSize: OutputSize, quality: RenderQuality,
 ) {
   return renderWithEndpoint('/api/video/v4/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality)
+}
+
+export function renderVideoProjectV5(
+  videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV5,
+  outputSize: OutputSize, quality: RenderQuality,
+) {
+  return renderWithEndpoint('/api/video/v5/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality)
 }
 
 export async function detectVideoSilence(file: File, thresholdDb = -35, minDuration = .5): Promise<SilenceDetectionResult> {
