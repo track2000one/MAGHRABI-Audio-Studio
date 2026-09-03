@@ -4,3 +4,4 @@ python-multipart==0.0.20
 numpy==1.26.4
 demucs==4.0.1
 psycopg[binary]==3.2.3
+cryptography==43.0.3
