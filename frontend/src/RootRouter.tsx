@@ -16,6 +16,7 @@ import VideoStudioV11 from './VideoStudioV11'
 import VideoStudioV12 from './VideoStudioV12'
 import VideoStudioV13 from './VideoStudioV13'
 import VideoStudioV14 from './VideoStudioV14'
+import VideoStudioV15 from './VideoStudioV15'
 import { getAuthStatus } from './lib/api'
 
 export default function RootRouter() {
@@ -53,7 +54,8 @@ export default function RootRouter() {
   if (route === '#video-v11') return <VideoStudioV11 />
   if (route === '#video-v12') return <VideoStudioV12 />
   if (route === '#video-v13') return <VideoStudioV13 />
-  if (route === '#video') return <VideoStudioV14 />
+  if (route === '#video-v14') return <VideoStudioV14 />
+  if (route === '#video') return <VideoStudioV15 />
 
   return (
     <>
@@ -65,7 +67,7 @@ export default function RootRouter() {
             className="inline-flex items-center gap-2 rounded-2xl border border-fuchsia-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-fuchsia-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-fuchsia-300/40 hover:bg-[#101a2b]"
           >
             <Video className="h-4 w-4 text-fuchsia-300" />
-            Video Studio Creator V14
+            Video Studio Creator V15
           </a>
           <a
             href="#tools"
