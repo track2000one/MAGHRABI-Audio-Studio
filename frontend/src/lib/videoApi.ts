@@ -4,12 +4,14 @@ export type RenderQuality = 'draft' | 'standard' | 'high'
 export type VideoTransition = 'none' | 'fade' | 'fadeblack' | 'fadewhite' | 'dissolve' | 'wipeleft' | 'wiperight' | 'slideleft' | 'slideright' | 'smoothleft' | 'smoothright' | 'circleopen' | 'circleclose' | 'pixelize'
 export type SpeedRampPreset = 'off' | 'montage' | 'hero' | 'bullet' | 'flash'
 export type PrivacyEffect = 'none' | 'blur' | 'mosaic'
+export type TransformEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'hold'
 
 export type TransformKeyframe = {
   time: number
   zoom: number
   panX: number
   panY: number
+  easing?: TransformEasing
 }
 
 export type VideoClipManifest = {
@@ -51,6 +53,8 @@ export type VideoClipManifest = {
   privacyHeight?: number
   privacyIntensity?: number
   transformKeyframes?: TransformKeyframe[]
+  audioLead?: number
+  audioTail?: number
 }
 
 export type TextTrackManifest = {
@@ -137,6 +141,8 @@ export type VideoProjectManifestV7 = VideoProjectManifestV5 & {
   magneticSnap: boolean
 }
 
+export type VideoProjectManifestV8 = VideoProjectManifestV7
+
 export type SilenceInterval = {
   start: number
   end: number
@@ -149,6 +155,11 @@ export type SilenceDetectionResult = {
   totalSilence: number
   thresholdDb: number
   minDuration: number
+}
+
+export type VideoWaveformResult = {
+  duration: number
+  peaks: number[]
 }
 
 async function responseError(response: Response) {
@@ -173,6 +184,29 @@ async function renderWithEndpoint(
   videoFiles.forEach((file) => form.append('video_files', file))
   audioFiles.forEach((file) => form.append('audio_files', file))
   imageFiles.forEach((file) => form.append('image_files', file))
+  form.append('manifest', JSON.stringify(manifest))
+  form.append('output_size', outputSize)
+  form.append('quality', quality)
+  const response = await fetch(endpoint, { method: 'POST', body: form, credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.blob()
+}
+
+async function renderWithLut(
+  endpoint: string,
+  videoFiles: File[],
+  audioFiles: File[],
+  imageFiles: File[],
+  manifest: VideoProjectManifestV7 | VideoProjectManifestV8,
+  outputSize: OutputSize,
+  quality: RenderQuality,
+  lutFile?: File | null,
+) {
+  const form = new FormData()
+  videoFiles.forEach((file) => form.append('video_files', file))
+  audioFiles.forEach((file) => form.append('audio_files', file))
+  imageFiles.forEach((file) => form.append('image_files', file))
+  if (lutFile) form.append('lut_file', lutFile)
   form.append('manifest', JSON.stringify(manifest))
   form.append('output_size', outputSize)
   form.append('quality', quality)
@@ -232,26 +266,18 @@ export function renderVideoProjectV6(
   return renderWithEndpoint('/api/video/v6/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality)
 }
 
-export async function renderVideoProjectV7(
-  videoFiles: File[],
-  audioFiles: File[],
-  imageFiles: File[],
-  manifest: VideoProjectManifestV7,
-  outputSize: OutputSize,
-  quality: RenderQuality,
-  lutFile?: File | null,
+export function renderVideoProjectV7(
+  videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV7,
+  outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null,
 ) {
-  const form = new FormData()
-  videoFiles.forEach((file) => form.append('video_files', file))
-  audioFiles.forEach((file) => form.append('audio_files', file))
-  imageFiles.forEach((file) => form.append('image_files', file))
-  if (lutFile) form.append('lut_file', lutFile)
-  form.append('manifest', JSON.stringify(manifest))
-  form.append('output_size', outputSize)
-  form.append('quality', quality)
-  const response = await fetch('/api/video/v7/render', { method: 'POST', body: form, credentials: 'include' })
-  if (!response.ok) throw await responseError(response)
-  return response.blob()
+  return renderWithLut('/api/video/v7/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile)
+}
+
+export function renderVideoProjectV8(
+  videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV8,
+  outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null,
+) {
+  return renderWithLut('/api/video/v8/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile)
 }
 
 export async function createVideoProxy(file: File) {
@@ -260,6 +286,15 @@ export async function createVideoProxy(file: File) {
   const response = await fetch('/api/video/v7/proxy', { method: 'POST', body: form, credentials: 'include' })
   if (!response.ok) throw await responseError(response)
   return response.blob()
+}
+
+export async function getVideoWaveform(file: File, bars = 180): Promise<VideoWaveformResult> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('bars', String(bars))
+  const response = await fetch('/api/video/v8/waveform', { method: 'POST', body: form, credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.json()
 }
 
 export async function detectVideoSilence(file: File, thresholdDb = -35, minDuration = .5): Promise<SilenceDetectionResult> {
