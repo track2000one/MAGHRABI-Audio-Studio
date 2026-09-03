@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from .main import require_auth
+from .video_tools import _run_ffmpeg
 from .video_tools_v11 import render_video_v11
 
 router = APIRouter(prefix="/api/video/v12", tags=["video-studio-v12"])
@@ -101,6 +102,89 @@ def _upload_from_path(path: Path, handles: list) -> UploadFile:
     return UploadFile(file=handle, filename=path.name)
 
 
+def _clip_output_duration(clip: dict) -> float:
+    if clip.get("freezeFrame"):
+        return max(.02, min(12.0, float(clip.get("freezeDuration", 2))))
+    source = max(.02, float(clip.get("end", 0)) - float(clip.get("start", 0)))
+    base_speed = max(.25, min(4.0, float(clip.get("speed", 1))))
+    preset = str(clip.get("speedRamp", "off"))
+    ramps = {
+        "montage": [.7, 1.8, .7],
+        "hero": [.5, 1.0, 2.0],
+        "bullet": [1.0, .35, 1.0],
+        "flash": [2.0, .5, 2.0],
+    }
+    values = ramps.get(preset)
+    if not values:
+        return source / base_speed
+    part = source / len(values)
+    return sum(part / max(.25, min(4.0, speed * base_speed)) for speed in values)
+
+
+def _generate_gap_media(folder: Path, index: int, duration: float) -> str:
+    generated = folder / "generated"
+    generated.mkdir(parents=True, exist_ok=True)
+    path = generated / f"gap-{index:03d}.mp4"
+    _run_ffmpeg([
+        "ffmpeg", "-hide_banner", "-y",
+        "-f", "lavfi", "-i", f"color=c=black:s=320x180:r=30:d={duration:.6f}",
+        "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+        "-t", f"{duration:.6f}", "-shortest",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "96k", str(path),
+    ])
+    return str(path.relative_to(folder))
+
+
+def _materialize_timeline_gaps(folder: Path, manifest_text: str, original_video_count: int) -> tuple[str, list[str]]:
+    project = json.loads(manifest_text)
+    clips = project.get("clips", [])
+    if not isinstance(clips, list) or not clips or not any(isinstance(item, dict) and "timelineStartAt" in item for item in clips):
+        return manifest_text, []
+
+    generated_dir = folder / "generated"
+    shutil.rmtree(generated_dir, ignore_errors=True)
+    ordered = sorted(
+        [item for item in clips if isinstance(item, dict)],
+        key=lambda item: float(item.get("timelineStartAt", 0)),
+    )
+    output: list[dict] = []
+    extra_paths: list[str] = []
+    cursor = 0.0
+    for clip in ordered:
+        requested_start = max(0.0, float(clip.get("timelineStartAt", cursor)))
+        if requested_start > cursor + .015:
+            gap = requested_start - cursor
+            rel = _generate_gap_media(folder, len(extra_paths), gap)
+            extra_paths.append(rel)
+            output.append({
+                "fileIndex": original_video_count + len(extra_paths) - 1,
+                "start": 0,
+                "end": gap,
+                "speed": 1,
+                "volume": 0,
+                "filter": "none",
+                "text": "",
+                "textSize": 48,
+                "textPosition": "bottom",
+                "rotation": 0,
+                "fit": "contain",
+                "speedRamp": "off",
+                "transformKeyframes": [],
+                "audioFadeIn": 0,
+                "audioFadeOut": 0,
+                "audioAutomation": [],
+            })
+            cursor = requested_start
+        clean = dict(clip)
+        clean.pop("timelineStartAt", None)
+        output.append(clean)
+        cursor = max(cursor, requested_start) + _clip_output_duration(clean)
+
+    project["clips"] = output
+    return json.dumps(project, ensure_ascii=False), extra_paths
+
+
 async def _render_job(job_id: str) -> None:
     state = _read_state(job_id)
     folder = _job_dir(job_id)
@@ -117,12 +201,20 @@ async def _render_job(job_id: str) -> None:
         )
         _write_state(job_id, state)
 
-        video_files = [_upload_from_path(folder / item, handles) for item in state.get("videoFiles", [])]
+        original_video_paths = list(state.get("videoFiles", []))
+        raw_manifest = (folder / "manifest.json").read_text(encoding="utf-8")
+        manifest, generated_paths = await asyncio.to_thread(
+            _materialize_timeline_gaps,
+            folder,
+            raw_manifest,
+            len(original_video_paths),
+        )
+        video_paths = original_video_paths + generated_paths
+        video_files = [_upload_from_path(folder / item, handles) for item in video_paths]
         audio_files = [_upload_from_path(folder / item, handles) for item in state.get("audioFiles", [])]
         image_files = [_upload_from_path(folder / item, handles) for item in state.get("imageFiles", [])]
         lut_path = folder / state["lutFile"] if state.get("lutFile") else None
         lut_file = _upload_from_path(lut_path, handles) if lut_path and lut_path.exists() else None
-        manifest = (folder / "manifest.json").read_text(encoding="utf-8")
 
         response = await render_video_v11(
             video_files=video_files,
