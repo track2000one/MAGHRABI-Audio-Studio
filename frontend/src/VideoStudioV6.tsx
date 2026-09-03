@@ -1,0 +1,477 @@
+import { ChangeEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Activity,
+  ArrowLeftRight,
+  Captions,
+  CircleStop,
+  Download,
+  Film,
+  Image as ImageIcon,
+  Layers3,
+  Maximize2,
+  Mic2,
+  MonitorUp,
+  Move,
+  Music2,
+  Pause,
+  Play,
+  Save,
+  Scissors,
+  Sparkles,
+  Square,
+  Trash2,
+  Type,
+  UploadCloud,
+  Video,
+  Volume2,
+  WandSparkles,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react'
+import { getAuthStatus } from './lib/api'
+import {
+  AudioTrackManifest,
+  detectVideoSilence,
+  ImageTrackManifest,
+  OutputSize,
+  PrivacyEffect,
+  RenderQuality,
+  renderVideoProjectV6,
+  SilenceDetectionResult,
+  SpeedRampPreset,
+  SubtitleTrackManifest,
+  TextTrackManifest,
+  VideoClipManifest,
+  VideoFilter,
+  VideoOverlayTrackManifest,
+  VideoTransition,
+} from './lib/videoApi'
+import { loadStoredVideoProject, saveStoredVideoProject } from './lib/projectStore'
+
+type VideoAsset = { file: File; url: string; duration: number }
+type AudioAsset = { file: File; duration: number }
+type ImageAsset = { file: File; url: string }
+type Clip = VideoClipManifest & { id: string }
+type TitleTrack = TextTrackManifest & { id: string }
+type SubtitleTrack = SubtitleTrackManifest & { id: string }
+type AudioTrack = AudioTrackManifest & { id: string }
+type ImageTrack = ImageTrackManifest & { id: string }
+type PipTrack = VideoOverlayTrackManifest & { id: string }
+type Selection = { kind: 'clip' | 'title' | 'subtitle' | 'audio' | 'image' | 'pip'; id: string } | null
+type KeyframeTarget = 'start' | 'end'
+type Panel = 'media' | 'transitions' | 'effects' | 'audio' | 'tools'
+
+type ProjectState = {
+  clips: Clip[]
+  textTracks: TitleTrack[]
+  subtitleTracks: SubtitleTrack[]
+  audioTracks: AudioTrack[]
+  imageTracks: ImageTrack[]
+  videoOverlays: PipTrack[]
+  transition: VideoTransition
+  transitionDuration: number
+  audioDuckingEnabled: boolean
+  duckingStrength: number
+}
+
+const transitions: Array<{ value: VideoTransition; label: string }> = [
+  { value: 'none', label: 'Cut' }, { value: 'fade', label: 'Fade' }, { value: 'dissolve', label: 'Dissolve' },
+  { value: 'fadeblack', label: 'Fade Black' }, { value: 'fadewhite', label: 'Fade White' },
+  { value: 'wipeleft', label: 'Wipe Left' }, { value: 'wiperight', label: 'Wipe Right' },
+  { value: 'slideleft', label: 'Slide Left' }, { value: 'slideright', label: 'Slide Right' },
+  { value: 'smoothleft', label: 'Smooth Left' }, { value: 'smoothright', label: 'Smooth Right' },
+  { value: 'circleopen', label: 'Circle Open' }, { value: 'circleclose', label: 'Circle Close' }, { value: 'pixelize', label: 'Pixelize' },
+]
+const speedRamps: Array<{ value: SpeedRampPreset; label: string; description: string }> = [
+  { value: 'off', label: 'Normal', description: 'سرعة ثابتة' },
+  { value: 'montage', label: 'Montage', description: 'بطيء ← سريع ← بطيء' },
+  { value: 'hero', label: 'Hero', description: 'Slow intro ثم تسارع' },
+  { value: 'bullet', label: 'Bullet', description: 'تباطؤ قوي في المنتصف' },
+  { value: 'flash', label: 'Flash', description: 'سريع ← بطيء ← سريع' },
+]
+const filters: Array<{ value: VideoFilter; label: string }> = [
+  { value: 'none', label: 'Normal' }, { value: 'warm', label: 'Warm' }, { value: 'cool', label: 'Cool' },
+  { value: 'cinematic', label: 'Cinematic' }, { value: 'vivid', label: 'Vivid' }, { value: 'mono', label: 'Mono' },
+]
+const initialProject: ProjectState = {
+  clips: [], textTracks: [], subtitleTracks: [], audioTracks: [], imageTracks: [], videoOverlays: [],
+  transition: 'fade', transitionDuration: .45, audioDuckingEnabled: false, duckingStrength: .65,
+}
+
+function uid() { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}` }
+function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)) }
+function fmt(seconds: number) {
+  const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0)
+  const mins = Math.floor(safe / 60)
+  return `${String(mins).padStart(2, '0')}:${(safe - mins * 60).toFixed(1).padStart(4, '0')}`
+}
+function fieldClass() { return 'mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-slate-100 outline-none focus:border-cyan-300/35' }
+function mediaDuration(file: File, kind: 'video' | 'audio') {
+  return new Promise<number>((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const element = document.createElement(kind)
+    element.preload = 'metadata'
+    element.onloadedmetadata = () => { const d = Number.isFinite(element.duration) ? element.duration : 0; URL.revokeObjectURL(url); resolve(d) }
+    element.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`تعذر قراءة ${file.name}`)) }
+    element.src = url
+  })
+}
+function rampSpeeds(preset: SpeedRampPreset, base: number) {
+  const map: Record<SpeedRampPreset, number[]> = { off: [1], montage: [.7, 1.8, .7], hero: [.5, 1, 2], bullet: [1, .35, 1], flash: [2, .5, 2] }
+  return map[preset].map((value) => clamp(value * base, .25, 4))
+}
+function clipDuration(clip: Clip) {
+  if (clip.freezeFrame) return clip.freezeDuration || 2
+  const speeds = rampSpeeds(clip.speedRamp || 'off', clip.speed)
+  const part = (clip.end - clip.start) / speeds.length
+  return speeds.reduce((sum, speed) => sum + part / speed, 0)
+}
+
+export default function VideoStudioV6() {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const transformDragRef = useRef<{ x: number; y: number; panX: number; panY: number; width: number; height: number } | null>(null)
+  const pipDragRef = useRef<{ id: string; mode: 'move' | 'resize'; x: number; y: number; startX: number; startY: number; scale: number; width: number; height: number } | null>(null)
+  const privacyDragRef = useRef<{ mode: 'move' | 'resize'; x: number; y: number; startX: number; startY: number; width: number; height: number; boxW: number; boxH: number } | null>(null)
+
+  const [authorized, setAuthorized] = useState<boolean | null>(null)
+  const [videos, setVideos] = useState<VideoAsset[]>([])
+  const [audios, setAudios] = useState<AudioAsset[]>([])
+  const [images, setImages] = useState<ImageAsset[]>([])
+  const [project, setProject] = useState<ProjectState>(initialProject)
+  const [selection, setSelection] = useState<Selection>(null)
+  const [panel, setPanel] = useState<Panel>('media')
+  const [previewTime, setPreviewTime] = useState(0)
+  const [projectTime, setProjectTime] = useState(0)
+  const [playing, setPlaying] = useState(false)
+  const [timelineZoom, setTimelineZoom] = useState(8)
+  const [recording, setRecording] = useState(false)
+  const [directTransform, setDirectTransform] = useState(false)
+  const [keyframeTarget, setKeyframeTarget] = useState<KeyframeTarget>('start')
+  const [privacyEdit, setPrivacyEdit] = useState(false)
+  const [silence, setSilence] = useState<SilenceDetectionResult | null>(null)
+  const [silenceBusy, setSilenceBusy] = useState(false)
+  const [outputSize, setOutputSize] = useState<OutputSize>('720p')
+  const [quality, setQuality] = useState<RenderQuality>('standard')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [resultUrl, setResultUrl] = useState<string | null>(null)
+
+  useEffect(() => { getAuthStatus().then((status) => setAuthorized(status.authenticated)).catch(() => setAuthorized(false)) }, [])
+  useEffect(() => () => {
+    videos.forEach((item) => URL.revokeObjectURL(item.url)); images.forEach((item) => URL.revokeObjectURL(item.url))
+    if (resultUrl) URL.revokeObjectURL(resultUrl)
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+  }, [])
+
+  const clipOffsets = useMemo(() => {
+    let cursor = 0
+    return project.clips.map((clip, index) => {
+      const duration = clipDuration(clip)
+      const start = cursor
+      cursor += duration
+      if (project.transition !== 'none' && index < project.clips.length - 1) cursor -= Math.min(project.transitionDuration, duration / 3)
+      return { start, end: start + duration, duration }
+    })
+  }, [project.clips, project.transition, project.transitionDuration])
+  const projectDuration = clipOffsets.length ? clipOffsets[clipOffsets.length - 1].end : 0
+  const selectedClipIndex = selection?.kind === 'clip' ? project.clips.findIndex((clip) => clip.id === selection.id) : -1
+  const selectedClip = selectedClipIndex >= 0 ? project.clips[selectedClipIndex] : null
+  const selectedVideo = selectedClip ? videos[selectedClip.fileIndex] : null
+  const selectedTitle = selection?.kind === 'title' ? project.textTracks.find((item) => item.id === selection.id) || null : null
+  const selectedSubtitle = selection?.kind === 'subtitle' ? project.subtitleTracks.find((item) => item.id === selection.id) || null : null
+  const selectedAudio = selection?.kind === 'audio' ? project.audioTracks.find((item) => item.id === selection.id) || null : null
+  const selectedImage = selection?.kind === 'image' ? project.imageTracks.find((item) => item.id === selection.id) || null : null
+  const selectedPip = selection?.kind === 'pip' ? project.videoOverlays.find((item) => item.id === selection.id) || null : null
+
+  const updateClip = (id: string, changes: Partial<Clip>) => setProject((state) => ({ ...state, clips: state.clips.map((clip) => clip.id === id ? { ...clip, ...changes } : clip) }))
+  const updateTitle = (id: string, changes: Partial<TitleTrack>) => setProject((state) => ({ ...state, textTracks: state.textTracks.map((item) => item.id === id ? { ...item, ...changes } : item) }))
+  const updateSubtitle = (id: string, changes: Partial<SubtitleTrack>) => setProject((state) => ({ ...state, subtitleTracks: state.subtitleTracks.map((item) => item.id === id ? { ...item, ...changes } : item) }))
+  const updateAudio = (id: string, changes: Partial<AudioTrack>) => setProject((state) => ({ ...state, audioTracks: state.audioTracks.map((item) => item.id === id ? { ...item, ...changes } : item) }))
+  const updateImage = (id: string, changes: Partial<ImageTrack>) => setProject((state) => ({ ...state, imageTracks: state.imageTracks.map((item) => item.id === id ? { ...item, ...changes } : item) }))
+  const updatePip = (id: string, changes: Partial<PipTrack>) => setProject((state) => ({ ...state, videoOverlays: state.videoOverlays.map((item) => item.id === id ? { ...item, ...changes } : item) }))
+
+  const makeClip = (fileIndex: number, duration: number): Clip => ({
+    id: uid(), fileIndex, start: 0, end: duration, speed: 1, volume: 1, filter: 'none', text: '', textSize: 48,
+    textPosition: 'bottom', rotation: 0, fit: 'contain', zoomStart: 1, zoomEnd: 1, panXStart: 0, panXEnd: 0,
+    panYStart: 0, panYEnd: 0, chromaEnabled: false, chromaColor: '#00ff00', chromaBackground: '#101010',
+    chromaSimilarity: .18, chromaBlend: .06, brightness: 0, contrast: 1, saturation: 1, temperature: 0, vignette: 0,
+    speedRamp: 'off', reverse: false, freezeFrame: false, freezeDuration: 2, privacyEffect: 'none', privacyX: .35,
+    privacyY: .30, privacyWidth: .30, privacyHeight: .22, privacyIntensity: .55,
+  })
+
+  const addVideoFiles = async (files: File[]) => {
+    const limited = files.slice(0, Math.max(0, 10 - videos.length)); if (!limited.length) return
+    const durations = await Promise.all(limited.map((file) => mediaDuration(file, 'video')))
+    const base = videos.length
+    const assets = limited.map((file, index) => ({ file, url: URL.createObjectURL(file), duration: durations[index] }))
+    const clips = assets.map((asset, index) => makeClip(base + index, asset.duration))
+    setVideos((state) => [...state, ...assets]); setProject((state) => ({ ...state, clips: [...state.clips, ...clips] }))
+    if (clips[0]) setSelection({ kind: 'clip', id: clips[0].id })
+  }
+  const onVideoInput = async (event: ChangeEvent<HTMLInputElement>) => {
+    try { await addVideoFiles(Array.from(event.target.files || [])); setError(null) } catch (e) { setError(e instanceof Error ? e.message : 'تعذر إضافة الفيديو.') }
+    event.target.value = ''
+  }
+  const addPipVideo = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return
+    try {
+      if (videos.length >= 10) throw new Error('وصلت للحد الأعلى من ملفات الفيديو في المشروع.')
+      const duration = await mediaDuration(file, 'video'); const fileIndex = videos.length
+      setVideos((state) => [...state, { file, url: URL.createObjectURL(file), duration }])
+      const track: PipTrack = { id: uid(), fileIndex, startAt: projectTime, endAt: projectTime + Math.min(duration, 6), sourceStart: 0, sourceEnd: Math.min(duration, 6), scale: .30, opacity: 1, x: .66, y: .62, borderRadius: .08, audioEnabled: false, audioVolume: .85 }
+      setProject((state) => ({ ...state, videoOverlays: [...state.videoOverlays, track] })); setSelection({ kind: 'pip', id: track.id }); setError(null)
+    } catch (e) { setError(e instanceof Error ? e.message : 'تعذر إضافة PiP.') }
+    event.target.value = ''
+  }
+  const addAudio = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return
+    try {
+      const duration = await mediaDuration(file, 'audio'); const fileIndex = audios.length
+      setAudios((state) => [...state, { file, duration }])
+      const track: AudioTrack = { id: uid(), fileIndex, startAt: projectTime, sourceStart: 0, sourceEnd: duration, volume: .65, fadeIn: .25, fadeOut: .45 }
+      setProject((state) => ({ ...state, audioTracks: [...state.audioTracks, track] })); setSelection({ kind: 'audio', id: track.id })
+    } catch (e) { setError(e instanceof Error ? e.message : 'تعذر إضافة الصوت.') }
+    event.target.value = ''
+  }
+  const addImage = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]; if (!file) return
+    const fileIndex = images.length
+    setImages((state) => [...state, { file, url: URL.createObjectURL(file) }])
+    const track: ImageTrack = { id: uid(), fileIndex, startAt: projectTime, endAt: projectTime + 5, scale: .22, opacity: 1, position: 'bottom-right', startX: .76, startY: .76, endX: .76, endY: .76, scaleStart: .22, scaleEnd: .22 }
+    setProject((state) => ({ ...state, imageTracks: [...state.imageTracks, track] })); setSelection({ kind: 'image', id: track.id }); event.target.value = ''
+  }
+  const addTitle = () => {
+    const track: TitleTrack = { id: uid(), text: 'عنوان جديد', startAt: projectTime, endAt: projectTime + 4, size: 56, position: 'center' }
+    setProject((state) => ({ ...state, textTracks: [...state.textTracks, track] })); setSelection({ kind: 'title', id: track.id })
+  }
+  const addSubtitle = () => {
+    const track: SubtitleTrack = { id: uid(), text: 'اكتب الترجمة هنا', startAt: projectTime, endAt: projectTime + 2.5, size: 38, position: 'bottom', color: '#ffffff', boxOpacity: .48 }
+    setProject((state) => ({ ...state, subtitleTracks: [...state.subtitleTracks, track] })); setSelection({ kind: 'subtitle', id: track.id })
+  }
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !selectedClip || !selectedVideo) return
+    video.pause(); setPlaying(false)
+    const seek = () => {
+      try { video.currentTime = selectedClip.start; video.playbackRate = selectedClip.speed; video.volume = clamp(selectedClip.volume, 0, 1); setPreviewTime(selectedClip.start); setProjectTime(clipOffsets[selectedClipIndex]?.start || 0) } catch {}
+    }
+    if (video.readyState >= 1) seek(); else video.addEventListener('loadedmetadata', seek, { once: true })
+    return () => video.removeEventListener('loadedmetadata', seek)
+  }, [selection?.id, selectedVideo?.url])
+
+  const togglePlay = async () => {
+    const video = videoRef.current; if (!video || !selectedClip) return
+    if (video.paused) { if (video.currentTime < selectedClip.start || video.currentTime >= selectedClip.end) video.currentTime = selectedClip.start; video.playbackRate = selectedClip.speed; await video.play().catch(() => undefined) } else video.pause()
+  }
+  const onTimeUpdate = () => {
+    const video = videoRef.current; if (!video || !selectedClip || selectedClipIndex < 0) return
+    const sourceTime = video.currentTime; setPreviewTime(sourceTime)
+    const local = Math.max(0, (sourceTime - selectedClip.start) / selectedClip.speed)
+    setProjectTime((clipOffsets[selectedClipIndex]?.start || 0) + local)
+    if (sourceTime >= selectedClip.end - .015) { video.pause(); video.currentTime = selectedClip.start }
+  }
+  const splitClip = () => {
+    if (!selectedClip) return
+    const at = clamp(previewTime, selectedClip.start, selectedClip.end)
+    if (at - selectedClip.start < .12 || selectedClip.end - at < .12) { setError('حرّك المؤشر داخل المقطع ثم نفذ Split.'); return }
+    const left = { ...selectedClip, id: uid(), end: at }; const right = { ...selectedClip, id: uid(), start: at }
+    setProject((state) => ({ ...state, clips: state.clips.flatMap((clip) => clip.id === selectedClip.id ? [left, right] : [clip]) }))
+    setSelection({ kind: 'clip', id: right.id }); setError(null)
+  }
+  const insertFreezeFrame = () => {
+    if (!selectedClip) return
+    const at = clamp(previewTime, selectedClip.start, Math.max(selectedClip.start, selectedClip.end - .08))
+    const frameEnd = Math.min(selectedClip.end, at + .06)
+    const left: Clip | null = at - selectedClip.start > .06 ? { ...selectedClip, id: uid(), end: at, freezeFrame: false } : null
+    const freeze: Clip = { ...selectedClip, id: uid(), start: at, end: Math.max(at + .02, frameEnd), speed: 1, speedRamp: 'off', reverse: false, freezeFrame: true, freezeDuration: 2 }
+    const right: Clip | null = selectedClip.end - frameEnd > .06 ? { ...selectedClip, id: uid(), start: frameEnd, freezeFrame: false } : null
+    const replacement = [left, freeze, right].filter(Boolean) as Clip[]
+    setProject((state) => ({ ...state, clips: state.clips.flatMap((clip) => clip.id === selectedClip.id ? replacement : [clip]) }))
+    setSelection({ kind: 'clip', id: freeze.id }); setError(null)
+  }
+  const deleteSelection = () => {
+    if (!selection) return
+    setProject((state) => ({ ...state,
+      clips: selection.kind === 'clip' ? state.clips.filter((item) => item.id !== selection.id) : state.clips,
+      textTracks: selection.kind === 'title' ? state.textTracks.filter((item) => item.id !== selection.id) : state.textTracks,
+      subtitleTracks: selection.kind === 'subtitle' ? state.subtitleTracks.filter((item) => item.id !== selection.id) : state.subtitleTracks,
+      audioTracks: selection.kind === 'audio' ? state.audioTracks.filter((item) => item.id !== selection.id) : state.audioTracks,
+      imageTracks: selection.kind === 'image' ? state.imageTracks.filter((item) => item.id !== selection.id) : state.imageTracks,
+      videoOverlays: selection.kind === 'pip' ? state.videoOverlays.filter((item) => item.id !== selection.id) : state.videoOverlays,
+    })); setSelection(null)
+  }
+
+  const startRecorder = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); streamRef.current = stream; chunksRef.current = []
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus' : 'video/webm'
+      const recorder = new MediaRecorder(stream, { mimeType: mime }); recorderRef.current = recorder
+      recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data) }
+      recorder.onstop = async () => {
+        setRecording(false); const blob = new Blob(chunksRef.current, { type: 'video/webm' }); const file = new File([blob], `screen-${Date.now()}.webm`, { type: 'video/webm' })
+        stream.getTracks().forEach((track) => track.stop()); streamRef.current = null
+        if (blob.size) await addVideoFiles([file]).catch((e) => setError(e instanceof Error ? e.message : 'تعذر إضافة تسجيل الشاشة.'))
+      }
+      stream.getVideoTracks()[0].onended = () => { if (recorder.state !== 'inactive') recorder.stop() }
+      recorder.start(500); setRecording(true); setError(null)
+    } catch (e) { setError(e instanceof Error ? e.message : 'تعذر بدء تسجيل الشاشة.') }
+  }
+  const stopRecorder = () => { const recorder = recorderRef.current; if (recorder && recorder.state !== 'inactive') recorder.stop() }
+
+  const runSilenceDetection = async () => {
+    if (!selectedClip || !selectedVideo) return
+    setSilenceBusy(true); setSilence(null); setError(null)
+    try { setSilence(await detectVideoSilence(selectedVideo.file, -35, .5)); setPanel('tools') } catch (e) { setError(e instanceof Error ? e.message : 'تعذر تحليل الصمت.') } finally { setSilenceBusy(false) }
+  }
+  const removeDetectedSilence = () => {
+    if (!selectedClip || !silence) return
+    const intervals = silence.intervals.map((item) => ({ start: Math.max(item.start, selectedClip.start), end: Math.min(item.end, selectedClip.end) })).filter((item) => item.end > item.start).sort((a, b) => a.start - b.start)
+    let cursor = selectedClip.start; const pieces: Clip[] = []
+    for (const interval of intervals) { if (interval.start > cursor + .08) pieces.push({ ...selectedClip, id: uid(), start: cursor, end: interval.start }); cursor = Math.max(cursor, interval.end) }
+    if (cursor < selectedClip.end - .08) pieces.push({ ...selectedClip, id: uid(), start: cursor, end: selectedClip.end })
+    if (!pieces.length) { setError('لم يتبق جزء صوتي صالح بعد إزالة الصمت.'); return }
+    setProject((state) => ({ ...state, clips: state.clips.flatMap((clip) => clip.id === selectedClip.id ? pieces : [clip]) }))
+    setSelection({ kind: 'clip', id: pieces[0].id }); setSilence(null)
+  }
+
+  const applyReframe = (focus: 'left' | 'center' | 'right') => {
+    if (!selectedClip) return
+    const zoom = outputSize === 'portrait' ? 1.42 : outputSize === 'square' ? 1.18 : 1.06
+    const panX = focus === 'left' ? -.55 : focus === 'right' ? .55 : 0
+    updateClip(selectedClip.id, { fit: 'cover', zoomStart: zoom, zoomEnd: zoom, panXStart: panX, panXEnd: panX, panYStart: 0, panYEnd: 0 })
+  }
+  const resetTransform = () => selectedClip && updateClip(selectedClip.id, { fit: 'contain', zoomStart: 1, zoomEnd: 1, panXStart: 0, panXEnd: 0, panYStart: 0, panYEnd: 0 })
+
+  const saveProject = async () => {
+    try {
+      await saveStoredVideoProject<ProjectState>({ version: 3, savedAt: new Date().toISOString(), project, videos: videos.map((item) => item.file), videoDurations: videos.map((item) => item.duration), audios: audios.map((item) => item.file), audioDurations: audios.map((item) => item.duration), images: images.map((item) => item.file), outputSize, quality }); setError(null)
+    } catch (e) { setError(e instanceof Error ? e.message : 'تعذر حفظ المشروع.') }
+  }
+  const restoreProject = async () => {
+    try {
+      const snap = await loadStoredVideoProject<ProjectState>(); if (!snap) { setError('لا يوجد مشروع محفوظ.'); return }
+      videos.forEach((item) => URL.revokeObjectURL(item.url)); images.forEach((item) => URL.revokeObjectURL(item.url))
+      setVideos(snap.videos.map((file, index) => ({ file, url: URL.createObjectURL(file), duration: snap.videoDurations[index] || 0 })))
+      setAudios(snap.audios.map((file, index) => ({ file, duration: snap.audioDurations[index] || 0 })))
+      setImages(snap.images.map((file) => ({ file, url: URL.createObjectURL(file) })))
+      const restored: ProjectState = { ...initialProject, ...snap.project, videoOverlays: (snap.project.videoOverlays || []).map((item) => ({ ...item, audioEnabled: item.audioEnabled || false, audioVolume: item.audioVolume ?? .85 })) }
+      setProject(restored); setOutputSize(snap.outputSize as OutputSize); setQuality(snap.quality as RenderQuality)
+      setSelection(restored.clips[0] ? { kind: 'clip', id: restored.clips[0].id } : null); setError(null)
+    } catch (e) { setError(e instanceof Error ? e.message : 'تعذر استعادة المشروع.') }
+  }
+  const exportProject = async () => {
+    if (!project.clips.length) return
+    setBusy(true); setError(null); if (resultUrl) URL.revokeObjectURL(resultUrl); setResultUrl(null)
+    try {
+      const blob = await renderVideoProjectV6(videos.map((item) => item.file), audios.map((item) => item.file), images.map((item) => item.file), {
+        clips: project.clips.map(({ id: _id, ...clip }) => clip), textTracks: project.textTracks.map(({ id: _id, ...track }) => track),
+        subtitleTracks: project.subtitleTracks.map(({ id: _id, ...track }) => track), audioTracks: project.audioTracks.map(({ id: _id, ...track }) => track),
+        imageTracks: project.imageTracks.map(({ id: _id, ...track }) => track), videoOverlays: project.videoOverlays.map(({ id: _id, ...track }) => track),
+        transition: project.transition, transitionDuration: project.transitionDuration, audioDuckingEnabled: project.audioDuckingEnabled, duckingStrength: project.duckingStrength,
+      }, outputSize, quality)
+      setResultUrl(URL.createObjectURL(blob))
+    } catch (e) { setError(e instanceof Error ? e.message : 'تعذر تصدير V6.') } finally { setBusy(false) }
+  }
+
+  const beginTransform = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!directTransform || !selectedClip || privacyEdit) return
+    const rect = event.currentTarget.getBoundingClientRect(); event.currentTarget.setPointerCapture(event.pointerId)
+    const panX = keyframeTarget === 'start' ? selectedClip.panXStart || 0 : selectedClip.panXEnd || 0
+    const panY = keyframeTarget === 'start' ? selectedClip.panYStart || 0 : selectedClip.panYEnd || 0
+    transformDragRef.current = { x: event.clientX, y: event.clientY, panX, panY, width: rect.width, height: rect.height }
+  }
+  const moveTransform = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = transformDragRef.current; if (!drag || !selectedClip) return
+    const x = clamp(drag.panX + ((event.clientX - drag.x) / drag.width) * 2, -1, 1); const y = clamp(drag.panY + ((event.clientY - drag.y) / drag.height) * 2, -1, 1)
+    updateClip(selectedClip.id, keyframeTarget === 'start' ? { panXStart: x, panYStart: y } : { panXEnd: x, panYEnd: y })
+  }
+  const endTransform = () => { transformDragRef.current = null }
+
+  const beginPip = (event: ReactPointerEvent<HTMLDivElement>, track: PipTrack, mode: 'move' | 'resize') => {
+    event.stopPropagation(); const rect = event.currentTarget.parentElement?.getBoundingClientRect(); if (!rect) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    pipDragRef.current = { id: track.id, mode, x: event.clientX, y: event.clientY, startX: track.x, startY: track.y, scale: track.scale, width: rect.width, height: rect.height }
+    setSelection({ kind: 'pip', id: track.id })
+  }
+  const movePip = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = pipDragRef.current; if (!drag || drag.id !== event.currentTarget.dataset.id) return
+    if (drag.mode === 'resize') {
+      const delta = ((event.clientX - drag.x) / drag.width + (event.clientY - drag.y) / drag.height) / 2
+      updatePip(drag.id, { scale: clamp(drag.scale + delta, .08, .85) })
+    } else {
+      const usableX = Math.max(40, drag.width * (1 - drag.scale)); const usableY = Math.max(40, drag.height * (1 - drag.scale))
+      updatePip(drag.id, { x: clamp(drag.startX + (event.clientX - drag.x) / usableX, 0, 1), y: clamp(drag.startY + (event.clientY - drag.y) / usableY, 0, 1) })
+    }
+  }
+  const endPip = () => { pipDragRef.current = null }
+
+  const beginPrivacy = (event: ReactPointerEvent<HTMLDivElement>, mode: 'move' | 'resize') => {
+    if (!selectedClip) return
+    event.stopPropagation(); const parent = event.currentTarget.parentElement?.getBoundingClientRect(); if (!parent) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    privacyDragRef.current = { mode, x: event.clientX, y: event.clientY, startX: selectedClip.privacyX || .35, startY: selectedClip.privacyY || .30, width: parent.width, height: parent.height, boxW: selectedClip.privacyWidth || .30, boxH: selectedClip.privacyHeight || .22 }
+  }
+  const movePrivacy = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = privacyDragRef.current; if (!drag || !selectedClip) return
+    const dx = (event.clientX - drag.x) / drag.width; const dy = (event.clientY - drag.y) / drag.height
+    if (drag.mode === 'resize') {
+      const width = clamp(drag.boxW + dx, .05, 1 - drag.startX); const height = clamp(drag.boxH + dy, .05, 1 - drag.startY)
+      updateClip(selectedClip.id, { privacyWidth: width, privacyHeight: height })
+    } else {
+      updateClip(selectedClip.id, { privacyX: clamp(drag.startX + dx, 0, 1 - drag.boxW), privacyY: clamp(drag.startY + dy, 0, 1 - drag.boxH) })
+    }
+  }
+  const endPrivacy = () => { privacyDragRef.current = null }
+
+  const previewBase = selectedClip?.filter === 'warm' ? 'sepia(.10)' : selectedClip?.filter === 'cool' ? 'hue-rotate(8deg)' : selectedClip?.filter === 'mono' ? 'grayscale(1)' : ''
+  const previewCss = selectedClip ? `${previewBase} brightness(${1 + (selectedClip.brightness || 0)}) contrast(${selectedClip.contrast || 1}) saturate(${selectedClip.saturation || 1})` : 'none'
+  const activeTitles = project.textTracks.filter((item) => projectTime >= item.startAt && projectTime <= item.endAt)
+  const activeSubs = project.subtitleTracks.filter((item) => projectTime >= item.startAt && projectTime <= item.endAt)
+  const activeImages = project.imageTracks.filter((item) => projectTime >= item.startAt && projectTime <= item.endAt)
+  const activePips = project.videoOverlays.filter((item) => projectTime >= item.startAt && projectTime <= item.endAt)
+  const clipProgress = selectedClip ? clamp((previewTime - selectedClip.start) / Math.max(.001, selectedClip.end - selectedClip.start), 0, 1) : 0
+  const currentZoom = selectedClip ? (selectedClip.zoomStart || 1) + ((selectedClip.zoomEnd || selectedClip.zoomStart || 1) - (selectedClip.zoomStart || 1)) * clipProgress : 1
+  const currentPanX = selectedClip ? (selectedClip.panXStart || 0) + ((selectedClip.panXEnd || selectedClip.panXStart || 0) - (selectedClip.panXStart || 0)) * clipProgress : 0
+  const currentPanY = selectedClip ? (selectedClip.panYStart || 0) + ((selectedClip.panYEnd || selectedClip.panYStart || 0) - (selectedClip.panYStart || 0)) * clipProgress : 0
+  const timelineWidth = Math.max(900, projectDuration * timelineZoom + 130)
+
+  if (authorized === null) return <div className="grid min-h-screen place-items-center bg-[#050710]"><Activity className="h-7 w-7 animate-spin text-cyan-300" /></div>
+  if (!authorized) return <div className="grid min-h-screen place-items-center bg-[#050710] text-white"><a href="#" className="rounded-2xl bg-white px-6 py-3 font-black text-black">العودة لتسجيل الدخول</a></div>
+
+  return (
+    <main className="min-h-screen bg-[#050710] text-slate-100">
+      <div className="relative mx-auto max-w-[1920px] px-3 py-3 md:px-5">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
+          <div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl bg-cyan-400/10"><Film className="h-5 w-5 text-cyan-200" /></div><div><div className="flex items-center gap-2"><h1 className="text-lg font-black">MAGHRABI Video Studio</h1><span className="rounded-full border border-cyan-300/20 bg-cyan-300/[.06] px-2 py-1 text-[9px] font-black text-cyan-200">CREATOR V6</span></div><p className="mt-1 text-[10px] text-slate-500">Visual Mask · PiP Resize/Audio · Keyframe Edit · Auto Reframe</p></div></div>
+          <div className="flex flex-wrap gap-2"><button onClick={saveProject} className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black"><Save className="mr-1 inline h-3.5 w-3.5" />حفظ</button><button onClick={restoreProject} className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black">استعادة</button><a href="#video-v5" className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black text-slate-400">V5</a><select value={outputSize} onChange={(e) => setOutputSize(e.target.value as OutputSize)} className="rounded-xl border border-white/10 bg-[#0b111d] px-3 text-[10px]"><option value="720p">720p</option><option value="1080p">1080p</option><option value="portrait">9:16</option><option value="square">1:1</option></select><select value={quality} onChange={(e) => setQuality(e.target.value as RenderQuality)} className="rounded-xl border border-white/10 bg-[#0b111d] px-3 text-[10px]"><option value="draft">Draft</option><option value="standard">Standard</option><option value="high">High</option></select><button onClick={exportProject} disabled={busy || !project.clips.length} className="rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2 text-xs font-black disabled:opacity-30">{busy ? 'Rendering...' : 'EXPORT V6'}</button></div>
+        </header>
+
+        <div className="mt-3 flex flex-wrap gap-1 rounded-2xl border border-white/10 bg-white/[.025] p-1.5">{(['media','transitions','effects','audio','tools'] as Panel[]).map((item) => <button key={item} onClick={() => setPanel(item)} className={`rounded-xl px-4 py-2 text-[10px] font-black ${panel === item ? 'bg-white text-black' : 'text-slate-400'}`}>{item === 'media' ? 'MEDIA' : item === 'transitions' ? 'TRANSITIONS' : item === 'effects' ? 'EFFECTS / MASK' : item === 'audio' ? 'AUDIO' : 'SMART TOOLS'}</button>)}</div>
+
+        <section className="mt-3 grid gap-3 2xl:grid-cols-[285px_minmax(0,1fr)_360px]">
+          <aside className="rounded-3xl border border-white/10 bg-[#090e19] p-4">
+            {panel === 'media' && <><p className="text-[10px] font-black tracking-widest text-slate-500">MEDIA LIBRARY</p><div className="mt-4 grid grid-cols-2 gap-2"><label className="cursor-pointer rounded-2xl border border-dashed border-violet-300/20 p-3 text-center text-[9px] font-black"><UploadCloud className="mx-auto mb-2 h-4 w-4" />VIDEO<input type="file" multiple accept="video/*,.mp4,.mov,.m4v,.webm,.mkv,.avi" className="hidden" onChange={onVideoInput} /></label><label className="cursor-pointer rounded-2xl border border-dashed border-emerald-300/20 p-3 text-center text-[9px] font-black"><Layers3 className="mx-auto mb-2 h-4 w-4" />PIP VIDEO<input type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv,.avi" className="hidden" onChange={addPipVideo} /></label><label className="cursor-pointer rounded-2xl border border-dashed border-cyan-300/20 p-3 text-center text-[9px] font-black"><Music2 className="mx-auto mb-2 h-4 w-4" />AUDIO<input type="file" accept="audio/*" className="hidden" onChange={addAudio} /></label><label className="cursor-pointer rounded-2xl border border-dashed border-fuchsia-300/20 p-3 text-center text-[9px] font-black"><ImageIcon className="mx-auto mb-2 h-4 w-4" />OVERLAY<input type="file" accept="image/*" className="hidden" onChange={addImage} /></label><button onClick={addTitle} className="rounded-2xl border border-dashed border-sky-300/20 p-3 text-[9px] font-black"><Type className="mx-auto mb-2 h-4 w-4" />TITLE</button><button onClick={addSubtitle} className="rounded-2xl border border-dashed border-amber-300/20 p-3 text-[9px] font-black"><Captions className="mx-auto mb-2 h-4 w-4" />SUBTITLE</button><button onClick={recording ? stopRecorder : startRecorder} className={`col-span-2 rounded-2xl border border-dashed p-3 text-[9px] font-black ${recording ? 'border-rose-300/40 bg-rose-400/10 text-rose-200' : 'border-emerald-300/20'}`}>{recording ? <CircleStop className="mx-auto mb-2 h-4 w-4" /> : <MonitorUp className="mx-auto mb-2 h-4 w-4" />}{recording ? 'STOP RECORD' : 'SCREEN REC'}</button></div><div className="mt-4 space-y-2">{videos.map((asset,index)=><div key={`${asset.file.name}-${index}`} className="rounded-xl border border-white/8 bg-white/[.025] p-3"><p className="truncate text-[10px] font-bold">{asset.file.name}</p><p className="mt-1 text-[9px] text-slate-600">{fmt(asset.duration)} · {(asset.file.size/1048576).toFixed(1)} MB</p></div>)}</div></>}
+            {panel === 'transitions' && <><p className="text-[10px] font-black tracking-widest text-slate-500">TRANSITION LIBRARY</p><div className="mt-4 grid grid-cols-2 gap-2">{transitions.map((item)=><button key={item.value} onClick={()=>setProject(state=>({...state,transition:item.value}))} className={`rounded-2xl border p-3 text-left text-[10px] font-black ${project.transition===item.value?'border-violet-300/50 bg-violet-400/15':'border-white/10 bg-white/[.02]'}`}><div className="mb-3 h-8 rounded-lg bg-gradient-to-r from-violet-500/40 via-white/10 to-cyan-500/40" />{item.label}</button>)}</div><label className="mt-4 block text-[9px] text-slate-500">DURATION<input className={fieldClass()} type="number" min=".1" max="1.5" step=".05" value={project.transitionDuration} onChange={(e)=>setProject(state=>({...state,transitionDuration:clamp(Number(e.target.value),.1,1.5)}))}/></label></>}
+            {panel === 'effects' && <><p className="text-[10px] font-black tracking-widest text-slate-500">EFFECTS / VISUAL MASK</p>{selectedClip ? <div className="mt-4 space-y-4"><div className="grid grid-cols-2 gap-2">{filters.map((item)=><button key={item.value} onClick={()=>updateClip(selectedClip.id,{filter:item.value})} className={`rounded-xl border px-3 py-2 text-[9px] font-black ${selectedClip.filter===item.value?'border-cyan-300/40 bg-cyan-300/10':'border-white/10'}`}>{item.label}</button>)}</div><label className="block text-[9px] text-slate-500">PRIVACY EFFECT<select className={fieldClass()} value={selectedClip.privacyEffect||'none'} onChange={(e)=>{updateClip(selectedClip.id,{privacyEffect:e.target.value as PrivacyEffect});setPrivacyEdit(e.target.value!=='none')}}><option value="none">None</option><option value="blur">Blur Region</option><option value="mosaic">Mosaic Region</option></select></label>{selectedClip.privacyEffect&&selectedClip.privacyEffect!=='none'&&<><button onClick={()=>setPrivacyEdit(v=>!v)} className={`w-full rounded-xl border px-3 py-2.5 text-[10px] font-black ${privacyEdit?'border-fuchsia-300/40 bg-fuchsia-300/10 text-fuchsia-100':'border-white/10'}`}><Maximize2 className="mr-2 inline h-4 w-4"/>{privacyEdit?'إنهاء تحرير المنطقة':'تحرير المنطقة على الفيديو'}</button><label className="block text-[9px] text-slate-600">INTENSITY<input type="range" min=".05" max="1" step=".05" value={selectedClip.privacyIntensity||.55} onChange={(e)=>updateClip(selectedClip.id,{privacyIntensity:Number(e.target.value)})} className="mt-2 w-full accent-fuchsia-300"/></label></>}</div> : <p className="mt-4 text-[10px] text-slate-600">حدد Clip لتعديل المؤثرات.</p>}</>}
+            {panel === 'audio' && <><p className="text-[10px] font-black tracking-widest text-slate-500">AUDIO MIXER</p><label className="mt-4 flex items-center justify-between rounded-xl border border-white/10 p-3 text-[10px] font-black"><span><Volume2 className="mr-2 inline h-4 w-4"/>Audio Ducking</span><input type="checkbox" checked={project.audioDuckingEnabled} onChange={(e)=>setProject(state=>({...state,audioDuckingEnabled:e.target.checked}))}/></label><label className="mt-4 block text-[9px] text-slate-500">DUCKING · {Math.round(project.duckingStrength*100)}%<input type="range" min="0" max="1" step=".05" value={project.duckingStrength} onChange={(e)=>setProject(state=>({...state,duckingStrength:Number(e.target.value)}))} className="mt-2 w-full accent-cyan-300"/></label>{selectedAudio&&<label className="mt-5 block text-[9px] text-slate-600">MUSIC VOLUME<input className={fieldClass()} type="number" min="0" max="2" step=".05" value={selectedAudio.volume} onChange={(e)=>updateAudio(selectedAudio.id,{volume:clamp(Number(e.target.value),0,2)})}/></label>}{selectedPip&&<div className="mt-5 rounded-2xl border border-emerald-300/15 p-3"><label className="flex items-center justify-between text-[10px] font-black"><span>صوت PiP في التصدير</span><input type="checkbox" checked={!!selectedPip.audioEnabled} onChange={(e)=>updatePip(selectedPip.id,{audioEnabled:e.target.checked})}/></label><label className="mt-3 block text-[9px] text-slate-600">PIP AUDIO VOLUME<input className={fieldClass()} type="number" min="0" max="2" step=".05" value={selectedPip.audioVolume??.85} onChange={(e)=>updatePip(selectedPip.id,{audioVolume:clamp(Number(e.target.value),0,2)})}/></label></div>}</>}
+            {panel === 'tools' && <><p className="text-[10px] font-black tracking-widest text-slate-500">SMART / CLIP TOOLS</p><div className="mt-4 grid grid-cols-2 gap-2"><button disabled={!selectedClip} onClick={()=>selectedClip&&updateClip(selectedClip.id,{reverse:!selectedClip.reverse})} className={`rounded-xl border p-3 text-[9px] font-black disabled:opacity-30 ${selectedClip?.reverse?'border-violet-300/40 bg-violet-300/10':'border-white/10'}`}><ArrowLeftRight className="mx-auto mb-2 h-4 w-4"/>REVERSE</button><button disabled={!selectedClip} onClick={insertFreezeFrame} className="rounded-xl border border-sky-300/20 p-3 text-[9px] font-black disabled:opacity-30"><Square className="mx-auto mb-2 h-4 w-4"/>FREEZE HERE</button></div><div className="mt-4 rounded-2xl border border-white/10 p-3"><p className="text-[10px] font-black">AUTO REFRAME</p><p className="mt-1 text-[9px] leading-5 text-slate-600">تهيئة سريعة للمقاس الحالي مع اختيار موضع التركيز.</p><div className="mt-3 grid grid-cols-3 gap-2"><button disabled={!selectedClip} onClick={()=>applyReframe('left')} className="rounded-xl border border-white/10 px-2 py-2 text-[9px]">Left</button><button disabled={!selectedClip} onClick={()=>applyReframe('center')} className="rounded-xl border border-cyan-300/20 bg-cyan-300/[.05] px-2 py-2 text-[9px]">Center</button><button disabled={!selectedClip} onClick={()=>applyReframe('right')} className="rounded-xl border border-white/10 px-2 py-2 text-[9px]">Right</button></div><button disabled={!selectedClip} onClick={resetTransform} className="mt-2 w-full rounded-xl border border-white/10 px-2 py-2 text-[9px] text-slate-500">Reset</button></div><button onClick={runSilenceDetection} disabled={!selectedClip||silenceBusy} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400/10 px-3 py-3 text-[10px] font-black text-cyan-100 disabled:opacity-30"><Mic2 className="h-4 w-4" />{silenceBusy?'تحليل الصمت...':'Silence Detection'}</button>{silence&&<div className="mt-3 rounded-2xl border border-cyan-300/15 bg-cyan-300/[.04] p-3"><p className="text-[10px] font-black">{silence.intervals.length} مناطق صامتة · {fmt(silence.totalSilence)}</p><button onClick={removeDetectedSilence} className="mt-3 w-full rounded-xl bg-white px-3 py-2 text-[10px] font-black text-black">إزالة الصمت تلقائيًا</button></div>}<div className="mt-5"><p className="text-[10px] font-black text-slate-500">SPEED RAMP</p><div className="mt-2 space-y-2">{speedRamps.map((item)=><button key={item.value} disabled={!selectedClip} onClick={()=>selectedClip&&updateClip(selectedClip.id,{speedRamp:item.value})} className={`w-full rounded-xl border p-3 text-left ${selectedClip?.speedRamp===item.value?'border-fuchsia-300/40 bg-fuchsia-300/10':'border-white/10'}`}><p className="text-[10px] font-black">{item.label}</p><p className="mt-1 text-[9px] text-slate-600">{item.description}</p></button>)}</div></div></>}
+          </aside>
+
+          <div className="min-w-0 space-y-3">
+            <div className="rounded-3xl border border-white/10 bg-[#080d17] p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black">PROGRAM MONITOR</p><p className="mt-1 text-[9px] text-slate-600">Project {fmt(projectTime)}</p></div><div className="flex gap-2"><div className="flex rounded-xl border border-white/10 p-1"><button onClick={()=>setKeyframeTarget('start')} className={`rounded-lg px-2.5 py-1.5 text-[9px] font-black ${keyframeTarget==='start'?'bg-amber-300 text-black':'text-slate-500'}`}>◆ START</button><button onClick={()=>setKeyframeTarget('end')} className={`rounded-lg px-2.5 py-1.5 text-[9px] font-black ${keyframeTarget==='end'?'bg-amber-300 text-black':'text-slate-500'}`}>◆ END</button></div><button disabled={!selectedClip} onClick={()=>setDirectTransform(v=>!v)} className={`rounded-xl border px-3 py-2 text-[9px] font-black disabled:opacity-30 ${directTransform?'border-emerald-300/40 bg-emerald-300/10 text-emerald-100':'border-white/10 text-slate-400'}`}><Move className="mr-1 inline h-3.5 w-3.5"/>Transform</button></div></div><div className="relative mx-auto aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black" onPointerDown={beginTransform} onPointerMove={moveTransform} onPointerUp={endTransform} onPointerCancel={endTransform}>{selectedVideo&&selectedClip?<><video ref={videoRef} src={selectedVideo.url} className="h-full w-full object-contain" style={{filter:previewCss,transform:`scale(${currentZoom}) translate(${currentPanX*16}%,${currentPanY*16}%)`,transformOrigin:'center'}} onTimeUpdate={onTimeUpdate} onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)} playsInline/>{selectedClip.privacyEffect&&selectedClip.privacyEffect!=='none'&&<div onPointerDown={(e)=>privacyEdit&&beginPrivacy(e,'move')} onPointerMove={movePrivacy} onPointerUp={endPrivacy} onPointerCancel={endPrivacy} className={`absolute border ${privacyEdit?'cursor-move border-fuchsia-200 ring-2 ring-fuchsia-300/20':'pointer-events-none border-fuchsia-300/60'}`} style={{left:`${(selectedClip.privacyX||.35)*100}%`,top:`${(selectedClip.privacyY||.3)*100}%`,width:`${(selectedClip.privacyWidth||.3)*100}%`,height:`${(selectedClip.privacyHeight||.22)*100}%`,backdropFilter:selectedClip.privacyEffect==='blur'?`blur(${4+(selectedClip.privacyIntensity||.55)*16}px)`:'blur(2px)'}}><span className="pointer-events-none absolute left-1 top-1 rounded bg-black/70 px-1.5 py-1 text-[8px] font-black text-fuchsia-200">{selectedClip.privacyEffect.toUpperCase()}</span>{privacyEdit&&<div onPointerDown={(e)=>beginPrivacy(e,'resize')} className="absolute -bottom-2 -right-2 h-5 w-5 cursor-nwse-resize rounded-md border-2 border-black bg-fuchsia-300 shadow-lg"/>}</div>}{activePips.map((track)=>{const asset=videos[track.fileIndex];if(!asset)return null;return <div key={track.id} data-id={track.id} onPointerDown={(e)=>beginPip(e,track,'move')} onPointerMove={movePip} onPointerUp={endPip} onPointerCancel={endPip} className={`absolute cursor-move overflow-visible border ${selection?.kind==='pip'&&selection.id===track.id?'border-emerald-300 ring-2 ring-emerald-300/20':'border-white/30'}`} style={{width:`${track.scale*100}%`,left:`${track.x*(1-track.scale)*100}%`,top:`${track.y*(1-track.scale)*100}%`,opacity:track.opacity,borderRadius:`${(track.borderRadius||0)*100}px`}}><video src={asset.url} muted autoPlay={playing} loop playsInline className="block h-auto w-full overflow-hidden rounded-[inherit]"/><span className="pointer-events-none absolute left-1 top-1 rounded bg-black/60 px-1.5 py-1 text-[8px] font-black text-emerald-200">PiP{track.audioEnabled?' + AUDIO':''}</span>{selection?.kind==='pip'&&selection.id===track.id&&<div onPointerDown={(e)=>beginPip(e,track,'resize')} className="absolute -bottom-2 -right-2 h-5 w-5 cursor-nwse-resize rounded-md border-2 border-black bg-emerald-300"/>}</div>})}{activeImages.map((track)=>{const asset=images[track.fileIndex];return asset?<img key={track.id} src={asset.url} className="pointer-events-none absolute bottom-5 right-5 max-h-[35%] max-w-[35%] object-contain" style={{opacity:track.opacity}}/>:null})}{activeTitles.map((track)=><div key={track.id} className="pointer-events-none absolute inset-x-8 top-1/2 -translate-y-1/2 text-center font-black text-white"><span className="rounded-lg bg-black/45 px-3 py-1.5" style={{fontSize:clamp(track.size/2,16,54)}}>{track.text}</span></div>)}{activeSubs.map((track)=><div key={track.id} className="pointer-events-none absolute inset-x-8 bottom-[6%] text-center font-bold" style={{color:track.color,fontSize:clamp(track.size/2,14,40)}}><span className="rounded-md bg-black/50 px-3 py-1.5">{track.text}</span></div>)}</>:<div className="grid h-full place-items-center"><Film className="h-12 w-12 text-slate-800"/></div>}</div><div className="mt-3 flex flex-wrap items-center justify-center gap-2"><button onClick={togglePlay} disabled={!selectedClip} className="rounded-xl bg-white px-4 py-2 text-xs font-black text-black disabled:opacity-30">{playing?<Pause className="mr-1 inline h-4 w-4"/>:<Play className="mr-1 inline h-4 w-4"/>}{playing?'إيقاف':'تشغيل'}</button><button onClick={splitClip} disabled={!selectedClip} className="rounded-xl border border-cyan-300/20 px-4 py-2 text-xs font-black"><Scissors className="mr-1 inline h-4 w-4"/>Split</button><button onClick={deleteSelection} disabled={!selection} className="rounded-xl border border-rose-300/20 px-3 py-2 text-rose-200 disabled:opacity-30"><Trash2 className="h-4 w-4"/></button></div></div>
+
+            <div className="rounded-3xl border border-white/10 bg-[#080d17] p-4"><div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-black">MULTI-TRACK TIMELINE</p><p className="mt-1 text-[9px] text-slate-600">Video · PiP · Title · Subtitle · Music · Overlay</p></div><div className="flex items-center gap-2"><ZoomOut className="h-4 w-4 text-slate-600"/><input type="range" min="3" max="24" value={timelineZoom} onChange={(e)=>setTimelineZoom(Number(e.target.value))} className="w-28 accent-cyan-300"/><ZoomIn className="h-4 w-4 text-slate-600"/></div></div><div className="overflow-x-auto rounded-2xl border border-white/8 bg-black/20"><div className="relative" style={{width:timelineWidth}}><div className="pointer-events-none absolute bottom-0 top-0 z-20 w-px bg-red-400" style={{left:80+projectTime*timelineZoom}}/>{['VIDEO','PIP VIDEO','TITLE','SUBTITLE','MUSIC','OVERLAY'].map((label)=><div key={label} className="h-16 border-b border-white/5"><div className="sticky left-0 z-30 flex h-full w-20 items-center bg-[#080d17] px-2 text-[9px] font-black text-slate-600">{label}</div></div>)}<div className="absolute left-20 top-0 h-16">{project.clips.map((clip,index)=>{const off=clipOffsets[index];if(!off)return null;const keyframed=Math.abs((clip.zoomEnd||1)-(clip.zoomStart||1))>.001||Math.abs((clip.panXEnd||0)-(clip.panXStart||0))>.001||Math.abs((clip.panYEnd||0)-(clip.panYStart||0))>.001;return <button key={clip.id} onClick={()=>{setSelection({kind:'clip',id:clip.id});setProjectTime(off.start)}} className={`absolute top-2 h-12 rounded-xl border px-3 text-left ${selection?.kind==='clip'&&selection.id===clip.id?'border-violet-200 bg-violet-400/20':'border-violet-300/15 bg-violet-400/10'}`} style={{left:off.start*timelineZoom,width:Math.max(75,off.duration*timelineZoom)}}><span className="text-[9px] font-black">CLIP {index+1}</span>{keyframed&&<><span className="absolute bottom-1 left-1 text-[9px] text-amber-300">◆</span><span className="absolute bottom-1 right-1 text-[9px] text-amber-300">◆</span></>}</button>})}</div><div className="absolute left-20 top-16 h-16">{project.videoOverlays.map((track)=><button key={track.id} onClick={()=>setSelection({kind:'pip',id:track.id})} className="absolute top-2 h-12 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[9px] font-black text-emerald-100" style={{left:track.startAt*timelineZoom,width:Math.max(75,(track.endAt-track.startAt)*timelineZoom)}}>PiP{track.audioEnabled?' 🔊':''}</button>)}</div><div className="absolute left-20 top-32 h-16">{project.textTracks.map((track)=><button key={track.id} onClick={()=>setSelection({kind:'title',id:track.id})} className="absolute top-2 h-12 rounded-xl border border-sky-300/15 bg-sky-400/10 px-3 text-[9px]" style={{left:track.startAt*timelineZoom,width:Math.max(70,(track.endAt-track.startAt)*timelineZoom)}}>{track.text}</button>)}</div><div className="absolute left-20 top-48 h-16">{project.subtitleTracks.map((track)=><button key={track.id} onClick={()=>setSelection({kind:'subtitle',id:track.id})} className="absolute top-2 h-12 rounded-xl border border-amber-300/15 bg-amber-400/10 px-3 text-[9px]" style={{left:track.startAt*timelineZoom,width:Math.max(70,(track.endAt-track.startAt)*timelineZoom)}}>{track.text}</button>)}</div><div className="absolute left-20 top-64 h-16">{project.audioTracks.map((track)=><button key={track.id} onClick={()=>setSelection({kind:'audio',id:track.id})} className="absolute top-2 h-12 rounded-xl border border-cyan-300/15 bg-cyan-400/10 px-3 text-[9px]" style={{left:track.startAt*timelineZoom,width:Math.max(70,(track.sourceEnd-track.sourceStart)*timelineZoom)}}>MUSIC</button>)}</div><div className="absolute left-20 top-80 h-16">{project.imageTracks.map((track)=><button key={track.id} onClick={()=>setSelection({kind:'image',id:track.id})} className="absolute top-2 h-12 rounded-xl border border-fuchsia-300/15 bg-fuchsia-400/10 px-3 text-[9px]" style={{left:track.startAt*timelineZoom,width:Math.max(70,(track.endAt-track.startAt)*timelineZoom)}}>OVERLAY</button>)}</div></div></div></div>
+
+            {resultUrl&&<div className="rounded-3xl border border-emerald-300/15 bg-emerald-300/[.035] p-5"><div className="flex items-center justify-between"><p className="text-sm font-black text-emerald-100">اكتمل Render V6</p><Sparkles className="h-5 w-5 text-emerald-300"/></div><video controls src={resultUrl} className="mt-4 max-h-[520px] w-full rounded-2xl bg-black"/><a href={resultUrl} download="MAGHRABI-video-v6.mp4" className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black text-black"><Download className="h-4 w-4"/>تنزيل الفيديو</a></div>}
+          </div>
+
+          <aside className="rounded-3xl border border-white/10 bg-[#090e19] p-4"><div className="flex items-center justify-between"><div><p className="text-[10px] font-black tracking-widest text-slate-500">INSPECTOR</p><p className="mt-1 text-xs font-black">{selection?.kind.toUpperCase()||'PROJECT'}</p></div><WandSparkles className="h-4 w-4 text-violet-300"/></div>{selectedClip&&selectedVideo&&<div className="mt-5 space-y-4"><div className="grid grid-cols-2 gap-2"><label className="text-[9px] text-slate-600">START<input className={fieldClass()} type="number" step=".05" value={selectedClip.start} onChange={(e)=>updateClip(selectedClip.id,{start:clamp(Number(e.target.value),0,selectedClip.end-.05)})}/></label><label className="text-[9px] text-slate-600">END<input className={fieldClass()} type="number" step=".05" value={selectedClip.end} onChange={(e)=>updateClip(selectedClip.id,{end:clamp(Number(e.target.value),selectedClip.start+.05,selectedVideo.duration)})}/></label></div>{selectedClip.freezeFrame&&<label className="block text-[9px] text-slate-600">FREEZE DURATION<input className={fieldClass()} type="number" min=".2" max="12" step=".1" value={selectedClip.freezeDuration||2} onChange={(e)=>updateClip(selectedClip.id,{freezeDuration:clamp(Number(e.target.value),.2,12)})}/></label>}<div className="rounded-2xl border border-amber-300/15 bg-amber-300/[.03] p-3"><div className="flex items-center justify-between"><p className="text-[10px] font-black text-amber-100">VISUAL KEYFRAME</p><span className="text-[9px] text-amber-300">◆ {keyframeTarget.toUpperCase()}</span></div><label className="mt-3 block text-[9px] text-slate-600">ZOOM<input type="range" min="1" max="4" step=".02" value={keyframeTarget==='start'?(selectedClip.zoomStart||1):(selectedClip.zoomEnd||1)} onChange={(e)=>updateClip(selectedClip.id,keyframeTarget==='start'?{zoomStart:Number(e.target.value)}:{zoomEnd:Number(e.target.value)})} className="mt-2 w-full accent-amber-300"/></label><p className="mt-2 text-[9px] leading-5 text-slate-600">اختر START أو END ثم فعّل Transform واسحب الفيديو داخل المعاينة.</p></div><label className="flex items-center justify-between rounded-xl border border-white/10 px-3 py-2 text-[10px]"><span>Green Screen / Chroma</span><input type="checkbox" checked={!!selectedClip.chromaEnabled} onChange={(e)=>updateClip(selectedClip.id,{chromaEnabled:e.target.checked})}/></label></div>}{selectedPip&&<div className="mt-5 space-y-4"><p className="text-[10px] font-black text-emerald-200">PICTURE-IN-PICTURE</p><div className="grid grid-cols-2 gap-2"><label className="text-[9px] text-slate-600">START<input className={fieldClass()} type="number" min="0" step=".1" value={selectedPip.startAt} onChange={(e)=>updatePip(selectedPip.id,{startAt:Math.max(0,Number(e.target.value))})}/></label><label className="text-[9px] text-slate-600">END<input className={fieldClass()} type="number" min=".1" step=".1" value={selectedPip.endAt} onChange={(e)=>updatePip(selectedPip.id,{endAt:Math.max(selectedPip.startAt+.1,Number(e.target.value))})}/></label><label className="text-[9px] text-slate-600">SCALE<input className={fieldClass()} type="number" min=".08" max=".85" step=".02" value={selectedPip.scale} onChange={(e)=>updatePip(selectedPip.id,{scale:clamp(Number(e.target.value),.08,.85)})}/></label><label className="text-[9px] text-slate-600">OPACITY<input className={fieldClass()} type="number" min="0" max="1" step=".05" value={selectedPip.opacity} onChange={(e)=>updatePip(selectedPip.id,{opacity:clamp(Number(e.target.value),0,1)})}/></label></div><p className="text-[9px] leading-5 text-slate-600">اسحب الـPiP لتغيير موضعه، واستخدم المقبض الأخضر في الزاوية لتغيير حجمه.</p></div>}{selectedTitle&&<div className="mt-5"><label className="text-[9px] text-slate-600">TEXT<input className={fieldClass()} value={selectedTitle.text} onChange={(e)=>updateTitle(selectedTitle.id,{text:e.target.value})}/></label></div>}{selectedSubtitle&&<div className="mt-5"><label className="text-[9px] text-slate-600">SUBTITLE<input className={fieldClass()} value={selectedSubtitle.text} onChange={(e)=>updateSubtitle(selectedSubtitle.id,{text:e.target.value})}/></label></div>}{selectedImage&&<div className="mt-5"><label className="text-[9px] text-slate-600">OVERLAY OPACITY<input className={fieldClass()} type="number" min="0" max="1" step=".05" value={selectedImage.opacity} onChange={(e)=>updateImage(selectedImage.id,{opacity:clamp(Number(e.target.value),0,1)})}/></label></div>}{error&&<div className="mt-5 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-[10px] leading-5 text-rose-200">{error}</div>}</aside>
+        </section>
+      </div>
+    </main>
+  )
+}
