@@ -18,6 +18,7 @@ import VideoStudioV13 from './VideoStudioV13'
 import VideoStudioV14 from './VideoStudioV14'
 import VideoStudioV15 from './VideoStudioV15'
 import VideoStudioV16 from './VideoStudioV16'
+import VideoStudioV17 from './VideoStudioV17'
 import { getAuthStatus } from './lib/api'
 
 export default function RootRouter() {
@@ -57,7 +58,8 @@ export default function RootRouter() {
   if (route === '#video-v13') return <VideoStudioV13 />
   if (route === '#video-v14') return <VideoStudioV14 />
   if (route === '#video-v15') return <VideoStudioV15 />
-  if (route === '#video') return <VideoStudioV16 />
+  if (route === '#video-v16') return <VideoStudioV16 />
+  if (route === '#video') return <VideoStudioV17 />
 
   return (
     <>
@@ -66,10 +68,10 @@ export default function RootRouter() {
         <div className="fixed bottom-5 left-5 z-50 flex flex-col gap-2 sm:flex-row">
           <a
             href="#video"
-            className="inline-flex items-center gap-2 rounded-2xl border border-fuchsia-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-fuchsia-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-fuchsia-300/40 hover:bg-[#101a2b]"
+            className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]"
           >
-            <Video className="h-4 w-4 text-fuchsia-300" />
-            Video Studio Creator V16
+            <Video className="h-4 w-4 text-cyan-300" />
+            Video Studio Creator V17
           </a>
           <a
             href="#tools"
