@@ -122,6 +122,14 @@ export function renderVideoProjectV9(videoFiles: File[], audioFiles: File[], ima
 export function renderVideoProjectV10(videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV10, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) { return renderWithLut('/api/video/v10/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile) }
 export function renderVideoProjectV11(videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV11, outputSize: OutputSize, quality: RenderQuality, lutFile?: File | null) { return renderWithLut('/api/video/v11/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality, lutFile) }
 
+export async function extractVideoAudio(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  const response = await fetch('/api/video/v11/extract-audio', { method: 'POST', body: form, credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.blob()
+}
+
 export async function createVideoProxy(file: File) { const form = new FormData(); form.append('file', file); const response = await fetch('/api/video/v7/proxy', { method: 'POST', body: form, credentials: 'include' }); if (!response.ok) throw await responseError(response); return response.blob() }
 export async function getVideoWaveform(file: File, bars = 180): Promise<VideoWaveformResult> { const form = new FormData(); form.append('file', file); form.append('bars', String(bars)); const response = await fetch('/api/video/v8/waveform', { method: 'POST', body: form, credentials: 'include' }); if (!response.ok) throw await responseError(response); return response.json() }
 export async function detectVideoSilence(file: File, thresholdDb = -35, minDuration = .5): Promise<SilenceDetectionResult> { const form = new FormData(); form.append('file', file); form.append('threshold_db', String(thresholdDb)); form.append('min_duration', String(minDuration)); const response = await fetch('/api/video/v4/silence-detect', { method: 'POST', body: form, credentials: 'include' }); if (!response.ok) throw await responseError(response); return response.json() }
