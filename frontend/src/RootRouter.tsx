@@ -4,6 +4,7 @@ import App from './App'
 import AudioTools from './AudioTools'
 import VideoStudio from './VideoStudio'
 import VideoStudioPro from './VideoStudioPro'
+import VideoStudioV3 from './VideoStudioV3'
 import { getAuthStatus } from './lib/api'
 
 export default function RootRouter() {
@@ -29,7 +30,8 @@ export default function RootRouter() {
 
   if (route === '#tools') return <AudioTools />
   if (route === '#video-basic') return <VideoStudio />
-  if (route === '#video') return <VideoStudioPro />
+  if (route === '#video-v2') return <VideoStudioPro />
+  if (route === '#video') return <VideoStudioV3 />
 
   return (
     <>
@@ -41,7 +43,7 @@ export default function RootRouter() {
             className="inline-flex items-center gap-2 rounded-2xl border border-violet-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-violet-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-violet-300/40 hover:bg-[#101a2b]"
           >
             <Video className="h-4 w-4 text-violet-300" />
-            Video Studio Pro
+            Video Studio V3
           </a>
           <a
             href="#tools"
