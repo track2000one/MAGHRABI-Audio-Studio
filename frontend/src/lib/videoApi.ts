@@ -99,6 +99,8 @@ export type VideoOverlayTrackManifest = {
   x: number
   y: number
   borderRadius?: number
+  audioEnabled?: boolean
+  audioVolume?: number
 }
 
 export type VideoProjectManifest = {
@@ -209,6 +211,13 @@ export function renderVideoProjectV5(
   outputSize: OutputSize, quality: RenderQuality,
 ) {
   return renderWithEndpoint('/api/video/v5/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality)
+}
+
+export function renderVideoProjectV6(
+  videoFiles: File[], audioFiles: File[], imageFiles: File[], manifest: VideoProjectManifestV5,
+  outputSize: OutputSize, quality: RenderQuality,
+) {
+  return renderWithEndpoint('/api/video/v6/render', videoFiles, audioFiles, imageFiles, manifest, outputSize, quality)
 }
 
 export async function detectVideoSilence(file: File, thresholdDb = -35, minDuration = .5): Promise<SilenceDetectionResult> {
