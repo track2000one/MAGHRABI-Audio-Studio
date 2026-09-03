@@ -115,6 +115,16 @@ export async function productionAnalysisV19(file: File, threshold = .35): Promis
   return response.json()
 }
 
+export async function highlightReelV19(file: File, threshold = .35, maxDuration = 30): Promise<Blob> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('threshold', String(threshold))
+  form.append('max_duration', String(maxDuration))
+  const response = await fetch('/api/video/v19/highlight-reel', { method: 'POST', body: form, credentials: 'include' })
+  if (!response.ok) throw await responseError(response)
+  return response.blob()
+}
+
 export async function whisperCapabilityV19(): Promise<WhisperCapabilityV19> {
   const response = await fetch('/api/video/v19/whisper-capability', { credentials: 'include' })
   if (!response.ok) throw await responseError(response)
