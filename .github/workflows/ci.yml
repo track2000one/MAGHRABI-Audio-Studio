@@ -33,8 +33,19 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Validate Python SHA-256 lock
+        run: |
+          grep -q -- '--hash=sha256:' backend/requirements.lock.txt
+          grep -Eq '^torch==2\.0\.1\+cpu' backend/requirements.lock.txt
+          grep -Eq '^torchaudio==2\.0\.2\+cpu' backend/requirements.lock.txt
+          python -m pip install --upgrade pip >/dev/null
+          python -m pip install --dry-run --ignore-installed --require-hashes \
+            --index-url https://pypi.org/simple \
+            --extra-index-url https://download.pytorch.org/whl/cpu \
+            -r backend/requirements.lock.txt >/tmp/v34-pip-dry-run.txt
+
       - name: Validate Python syntax
         run: python -m py_compile backend/app/*.py
 
       - name: Validation complete
-        run: echo "Creator V33 validation completed from source-controlled dependency lock"
+        run: echo "Creator V34 validation completed from exact npm and Python SHA-256 locks"
