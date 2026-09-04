@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import {
   createReleaseV30, deleteFlagV30, evaluateReleaseV30, evidenceUrlV30, getOverviewV30,
-  pauseReleaseV30, promoteReleaseV30, rollbackReleaseV30, saveFlagV30, startReleaseV30,
+  pauseReleaseV30, promoteReleaseV30, resumeReleaseV30, rollbackReleaseV30, saveFlagV30, startReleaseV30,
   type V30Flag, type V30Overview,
 } from './lib/progressiveApiV30'
 
@@ -122,8 +122,8 @@ export default function VideoStudioV30() {
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
               <button disabled={!!busy} onClick={() => void act('evaluate', () => evaluateReleaseV30(active.id), 'تم تقييم Current/Canary SLO.')} className="rounded-xl bg-cyan-300 px-4 py-2 text-xs font-black text-slate-950 disabled:opacity-40">EVALUATE NOW</button>
-              <button disabled={!!busy || !!evaluation?.blockers?.length} onClick={() => void act('promote', () => promoteReleaseV30(active.id), 'تم الانتقال إلى Canary Stage التالية.')} className="flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 disabled:opacity-40"><ArrowUpRight className="h-4 w-4" /> PROMOTE</button>
-              <button disabled={!!busy} onClick={() => void act('pause', () => pauseReleaseV30(active.id), 'تم إيقاف Auto Controller مؤقتًا.')} className="flex items-center gap-2 rounded-xl border border-amber-400/25 px-4 py-2 text-xs font-black text-amber-100 disabled:opacity-40"><Pause className="h-4 w-4" /> PAUSE</button>
+              <button disabled={!!busy || active.state === 'paused' || !!evaluation?.blockers?.length} onClick={() => void act('promote', () => promoteReleaseV30(active.id), 'تم الانتقال إلى Canary Stage التالية.')} className="flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 disabled:opacity-40"><ArrowUpRight className="h-4 w-4" /> PROMOTE</button>
+              {active.state === 'paused' ? <button disabled={!!busy} onClick={() => void act('resume', () => resumeReleaseV30(active.id), 'تم استئناف Auto Controller مع الحفاظ على نسبة Canary الحالية.')} className="flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-xs font-black text-emerald-100 disabled:opacity-40"><Play className="h-4 w-4" /> RESUME</button> : <button disabled={!!busy} onClick={() => void act('pause', () => pauseReleaseV30(active.id), 'تم إيقاف Auto Controller مؤقتًا.')} className="flex items-center gap-2 rounded-xl border border-amber-400/25 px-4 py-2 text-xs font-black text-amber-100 disabled:opacity-40"><Pause className="h-4 w-4" /> PAUSE</button>}
               <button disabled={!!busy} onClick={() => void act('rollback', () => rollbackReleaseV30(active.id, 'Manual operator rollback'), 'تم Rollback إلى 0%.')} className="flex items-center gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-2 text-xs font-black text-rose-100 disabled:opacity-40"><RotateCcw className="h-4 w-4" /> ROLLBACK</button>
               <a href={evidenceUrlV30(active.id)} className="flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-black"><Download className="h-4 w-4" /> EVIDENCE ZIP</a>
             </div>
