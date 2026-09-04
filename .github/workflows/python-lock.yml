@@ -15,7 +15,7 @@ permissions:
 jobs:
   refresh-python-lock:
     if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,11 +39,11 @@ jobs:
             --no-emit-index-url \
             --output-file backend/requirements.lock.txt
 
-      - name: Verify lock has hashes and protected ML stack
+      - name: Verify lock has hashes and secure matched ML stack
         run: |
           grep -q -- '--hash=sha256:' backend/requirements.lock.txt
-          grep -Eq '^torch==2\.0\.1\+cpu' backend/requirements.lock.txt
-          grep -Eq '^torchaudio==2\.0\.2\+cpu' backend/requirements.lock.txt
+          grep -Eq '^torch==2\.6\.0\+cpu' backend/requirements.lock.txt
+          grep -Eq '^torchaudio==2\.6\.0\+cpu' backend/requirements.lock.txt
 
       - name: Commit lockfile when changed
         run: |
