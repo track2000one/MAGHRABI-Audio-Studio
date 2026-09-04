@@ -114,7 +114,7 @@ jobs:
           upload-artifact: false
 
       - name: Trivy artifact report
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: v34-artifact-root
@@ -125,7 +125,7 @@ jobs:
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
 
       - name: Trivy critical gate
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: v34-artifact-root
