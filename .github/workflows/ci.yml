@@ -46,8 +46,8 @@ jobs:
       - name: Validate Python SHA-256 lock
         run: |
           grep -q -- '--hash=sha256:' backend/requirements.lock.txt
-          grep -Eq '^torch==2\.0\.1\+cpu' backend/requirements.lock.txt
-          grep -Eq '^torchaudio==2\.0\.2\+cpu' backend/requirements.lock.txt
+          grep -Eq '^torch==2\.6\.0\+cpu' backend/requirements.lock.txt
+          grep -Eq '^torchaudio==2\.6\.0\+cpu' backend/requirements.lock.txt
           python -m pip install --upgrade pip >/dev/null
           python -m pip install --dry-run --ignore-installed --require-hashes \
             --index-url https://pypi.org/simple \
