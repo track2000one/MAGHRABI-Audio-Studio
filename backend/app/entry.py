@@ -36,6 +36,8 @@ from .video_tools_v31_runtime import router as video_tools_v31_router, install_v
 from .video_tools_v32_runtime import router as video_tools_v32_router, install_v32
 from .video_tools_v33_runtime import router as video_tools_v33_router, install_v33
 from .video_tools_v34_runtime import router as video_tools_v34_router, install_v34
+from .video_tools_v40_runtime import router as video_tools_v40_router, install_v40
+from .security_hardening_v38 import install_security_hardening
 
 # main.py mounts the SPA at "/". Keep that catch-all route last so API
 # endpoints remain reachable before StaticFiles handles the request.
@@ -78,11 +80,12 @@ app.include_router(video_tools_v31_router)
 app.include_router(video_tools_v32_router)
 app.include_router(video_tools_v33_router)
 app.include_router(video_tools_v34_router)
+app.include_router(video_tools_v40_router)
 app.router.routes.extend(static_mounts)
 
-# Install observability, reliability, managed workers, chaos validation,
-# SLO/capacity sampling, progressive delivery, GitOps, supply-chain policy,
-# reproducible-build attestation, then hermetic artifact enforcement.
+# Install the historical reliability/release gates first, then V40 as the
+# non-waivable final Production gate. HTTP security hardening is outermost so
+# even blocked/error responses receive the production security headers.
 install_v25_observability(app)
 install_v26_reliability(app)
 install_v27_managed_workers(app)
@@ -93,3 +96,5 @@ install_v31(app)
 install_v32(app)
 install_v33(app)
 install_v34(app)
+install_v40(app)
+install_security_hardening(app)
