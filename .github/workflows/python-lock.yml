@@ -1,0 +1,58 @@
+name: Refresh Python Hash Lock
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/requirements.txt'
+      - 'backend/requirements.in'
+      - '.github/workflows/python-lock.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-python-lock:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install uv resolver
+        run: python -m pip install --disable-pip-version-check 'uv==0.8.17'
+
+      - name: Generate transitive SHA-256 lock
+        run: |
+          uv pip compile backend/requirements.in \
+            --python-version 3.10 \
+            --python-platform x86_64-manylinux_2_17 \
+            --generate-hashes \
+            --no-emit-index-url \
+            --output-file backend/requirements.lock.txt
+
+      - name: Verify lock has hashes and protected ML stack
+        run: |
+          grep -q -- '--hash=sha256:' backend/requirements.lock.txt
+          grep -Eq '^torch==2\.0\.1\+cpu' backend/requirements.lock.txt
+          grep -Eq '^torchaudio==2\.0\.2\+cpu' backend/requirements.lock.txt
+
+      - name: Commit lockfile when changed
+        run: |
+          if git diff --quiet -- backend/requirements.lock.txt && git ls-files --error-unmatch backend/requirements.lock.txt >/dev/null 2>&1; then
+            echo "requirements.lock.txt already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/requirements.lock.txt
+          git commit -m "chore: lock Python transitive dependency graph"
+          git push origin HEAD:main
