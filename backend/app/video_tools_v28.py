@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -61,6 +62,7 @@ def _spawn_heartbeat_worker(*, drill_id: str, job_key: str, token: str, worker_i
 
 
 def _acquire_drill(job_key: str, drill_id: str, worker_id: str, *, ttl: int, max_attempts: int = 3) -> dict:
+    checksum = hashlib.sha256(f"{job_key}:{drill_id}".encode("utf-8")).hexdigest()
     return v26._acquire_lease({
         "jobKey": job_key,
         "category": "v28-real-chaos",
@@ -69,7 +71,7 @@ def _acquire_drill(job_key: str, drill_id: str, worker_id: str, *, ttl: int, max
         "ttlSeconds": ttl,
         "maxAttempts": max_attempts,
         "idempotencyKey": job_key,
-        "payloadChecksum": store._loads(json.dumps({"drill": drill_id}), {}).__class__.__name__ + drill_id,
+        "payloadChecksum": checksum,
     })
 
 
@@ -127,7 +129,9 @@ def _real_kill_drill(drill_id: str, fast: bool) -> None:
         store.mark(drill_id, primary_worker, "process_sigkill", {"pid": primary.pid, "returnCode": primary.returncode})
         store.update_drill(drill_id, state="waiting-lease-expiry", killedAt=killed_at)
 
-        expired = _wait_until(lambda: int((_lease(job_key) or {}).get("expires_at") or 0) <= int(time.time()), ttl + 8, .5)
+        # V26 recovery uses expires_at < now, so wait until the TTL is strictly
+        # behind the current second rather than merely equal to it.
+        expired = _wait_until(lambda: int((_lease(job_key) or {}).get("expires_at") or 0) < int(time.time()), ttl + 10, .5)
         if not expired:
             raise RuntimeError("Lease لم تنتهِ بعد قتل Primary worker.")
         v26._recover_expired_leases()
