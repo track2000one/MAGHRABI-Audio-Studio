@@ -124,9 +124,7 @@ def _patch_runtime() -> None:
             artifact["latest"] = latest_by_env.get(environment)
         staged["artifact"] = artifact
 
-        # Ruleset listings are useful evidence, but a list alone does not prove that
-        # a specific candidate branch is covered by that ruleset. The gate therefore
-        # accepts branch protection only when the branch-protection endpoint confirms it.
+        # A ruleset listing alone does not prove applicability to this candidate branch.
         rules = dict(scan.get("rules") or {})
         rulesets = dict(rules.get("rulesets") or {})
         reported_ruleset_count = int(rulesets.get("count") or 0)
@@ -146,6 +144,12 @@ def _patch_runtime() -> None:
 
     def send_deployment_with_artifact(release: dict, *, action: str, environment: str, target_sha: str) -> dict:
         artifact = base.store.latest_artifact(release["id"], environment)
+        if action == "rollback" and artifact:
+            metadata = artifact.get("metadata") if isinstance(artifact.get("metadata"), dict) else {}
+            attested_sha = str(metadata.get("gitSha") or metadata.get("targetSha") or "").strip()
+            if not attested_sha or attested_sha != target_sha:
+                artifact = None
+
         if not artifact or not base.v31.DEPLOY_WEBHOOK_URL:
             result = original_send_deployment(release, action=action, environment=environment, target_sha=target_sha)
             if isinstance(result, dict) and artifact:
