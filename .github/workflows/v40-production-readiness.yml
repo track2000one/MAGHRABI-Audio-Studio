@@ -1,0 +1,352 @@
+name: V40 Production Readiness
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: v40-production-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  v35_oci:
+    name: v35-oci
+    runs-on: ubuntu-24.04
+    outputs:
+      digest_hex: ${{ steps.digest.outputs.digest_hex }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build production container image
+        run: docker build --pull -t maghrabi-studio:v40-${GITHUB_SHA} .
+
+      - name: Export immutable container artifact
+        run: docker save maghrabi-studio:v40-${GITHUB_SHA} -o v35-container-image.tar
+
+      - name: Compute container artifact SHA-256
+        id: digest
+        run: |
+          HEX=$(sha256sum v35-container-image.tar | awk '{print $1}')
+          echo "$HEX" | grep -Eq '^[0-9a-f]{64}$'
+          echo "digest_hex=${HEX}" >> "$GITHUB_OUTPUT"
+          echo "${HEX}  v35-container-image.tar" > v35-container-image.sha256
+
+      - name: Trivy container image report
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: maghrabi-studio:v40-${{ github.sha }}
+          format: json
+          output: v35-trivy-image.json
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+
+      - name: Trivy container CRITICAL gate
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: maghrabi-studio:v40-${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL
+
+      - name: Generate container CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: maghrabi-studio:v40-${{ github.sha }}
+          format: cyclonedx-json
+          output-file: v35-container-sbom.cdx.json
+          upload-artifact: false
+
+      - name: GitHub provenance for immutable container artifact
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: v35-container-image.tar
+
+      - name: Write V35 evidence
+        env:
+          DIGEST_HEX: ${{ steps.digest.outputs.digest_hex }}
+        run: |
+          cat > v35-container-evidence.json <<EOF
+          {
+            "schema":"maghrabi-v35-container/v1",
+            "repository":"${GITHUB_REPOSITORY}",
+            "gitSha":"${GITHUB_SHA}",
+            "artifact":"v35-container-image.tar",
+            "artifactSha256":"${DIGEST_HEX}",
+            "trivyImageScan":true,
+            "trivyCriticalGate":true,
+            "cycloneDxSbom":true,
+            "githubOidcProvenance":true,
+            "externalRegistrySignature":false
+          }
+          EOF
+
+      - name: Upload V35 container artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v35-container-${{ github.sha }}-${{ steps.digest.outputs.digest_hex }}
+          path: |
+            v35-container-image.tar
+            v35-container-image.sha256
+            v35-container-evidence.json
+            v35-trivy-image.json
+            v35-container-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
+
+  v36_runtime:
+    name: v36-runtime
+    needs: v35_oci
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download exact V35 container artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: v35-container-${{ github.sha }}-${{ needs.v35_oci.outputs.digest_hex }}
+          path: v35
+
+      - name: Verify and load exact artifact
+        env:
+          EXPECTED: ${{ needs.v35_oci.outputs.digest_hex }}
+        run: |
+          ACTUAL=$(sha256sum v35/v35-container-image.tar | awk '{print $1}')
+          test "$ACTUAL" = "$EXPECTED"
+          docker load -i v35/v35-container-image.tar
+
+      - name: Validate runtime ML and media stack
+        run: |
+          IMAGE="maghrabi-studio:v40-${GITHUB_SHA}"
+          docker run --rm --entrypoint python "$IMAGE" -c "import torch,torchaudio,demucs; assert torch.__version__=='2.0.1+cpu'; assert torchaudio.__version__=='2.0.2+cpu'; print('ml-stack-ok')"
+          docker run --rm --entrypoint ffmpeg "$IMAGE" -version | head -1
+          docker run --rm --entrypoint ffprobe "$IMAGE" -version | head -1
+
+      - name: Runtime HTTP and authentication smoke
+        run: |
+          set -euo pipefail
+          IMAGE="maghrabi-studio:v40-${GITHUB_SHA}"
+          docker run -d --name maghrabi-v40-smoke -p 18000:8000 \
+            -e ADMIN_USERNAME=smoke-admin \
+            -e ADMIN_PASSWORD=smoke-password-only-for-ci \
+            -e AUTH_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+            -e DATA_DIR=/data \
+            -e ENABLE_API_DOCS=0 \
+            "$IMAGE"
+          cleanup() {
+            docker logs maghrabi-v40-smoke > v36-container.log 2>&1 || true
+            docker rm -f maghrabi-v40-smoke >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          READY=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:18000/api/health > v36-health.json; then READY=1; break; fi
+            sleep 2
+          done
+          test "$READY" = "1"
+          grep -q '"status":"ok"' v36-health.json
+          curl -fsS http://127.0.0.1:18000/api/auth/status > v36-auth-status.json
+          grep -q '"configured":true' v36-auth-status.json
+          curl -fsS -H 'Content-Type: application/json' \
+            -d '{"username":"smoke-admin","password":"smoke-password-only-for-ci"}' \
+            http://127.0.0.1:18000/api/auth/login > v36-login.json
+          grep -q '"authenticated":true' v36-login.json
+          curl -fsS http://127.0.0.1:18000/ > v36-index.html
+          grep -q '<div id="root"></div>' v36-index.html
+          curl -fsS http://127.0.0.1:18000/api/video/v40/health/live > v36-v40-live.json
+          grep -q '"version":"40"' v36-v40-live.json
+          curl -fsS -D v36-headers.txt -o /dev/null http://127.0.0.1:18000/api/auth/status
+          grep -qi '^content-security-policy:' v36-headers.txt
+          grep -qi '^x-content-type-options: nosniff' v36-headers.txt
+          grep -qi '^x-frame-options: DENY' v36-headers.txt
+          grep -qi '^cache-control: no-store' v36-headers.txt
+          DOC_CODE=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:18000/docs)
+          test "$DOC_CODE" = "404"
+
+      - name: Write V36 runtime evidence
+        env:
+          DIGEST_HEX: ${{ needs.v35_oci.outputs.digest_hex }}
+        run: |
+          cat > v36-runtime-evidence.json <<EOF
+          {"schema":"maghrabi-v36-runtime/v1","gitSha":"${GITHUB_SHA}","containerArtifactSha256":"${DIGEST_HEX}","mlStack":true,"ffmpeg":true,"ffprobe":true,"health":true,"authConfigured":true,"login":true,"frontend":true,"securityHeaders":true,"publicDocsDisabled":true}
+          EOF
+
+      - name: Upload V36 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v36-runtime-${{ github.sha }}
+          path: |
+            v36-runtime-evidence.json
+            v36-health.json
+            v36-auth-status.json
+            v36-login.json
+            v36-v40-live.json
+            v36-headers.txt
+            v36-container.log
+          if-no-files-found: warn
+          retention-days: 30
+
+  v37_dr:
+    name: v37-dr
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Run backup and recovery regression tests
+        run: python -m unittest backend.tests.test_ops_backup_v37 -v
+      - name: Write V37 evidence
+        run: |
+          cat > v37-dr-evidence.json <<EOF
+          {"schema":"maghrabi-v37-dr/v1","gitSha":"${GITHUB_SHA}","verifiedBackup":true,"restoreRoundTrip":true,"tamperDetection":true,"pathTraversalProtection":true,"transientDataExcluded":true}
+          EOF
+      - name: Upload V37 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v37-dr-${{ github.sha }}
+          path: v37-dr-evidence.json
+          retention-days: 30
+
+  v38_security:
+    name: v38-security
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Trivy repository secret scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          format: table
+          exit-code: '1'
+      - name: Trivy IaC CRITICAL gate
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          format: table
+          exit-code: '1'
+          severity: CRITICAL
+      - name: Validate production security policy files
+        run: |
+          test -s SECURITY.md
+          test -s docs/PRODUCTION_RUNBOOK.md
+          test -s docs/PROJECT_COMPLETION_CHECKLIST.md
+          grep -q '^ENABLE_API_DOCS=0' .env.example
+          grep -q "frame-ancestors 'none'" backend/app/security_hardening_v38.py
+          grep -q 'Strict-Transport-Security' backend/app/security_hardening_v38.py
+      - name: Write V38 evidence
+        run: |
+          cat > v38-security-evidence.json <<EOF
+          {"schema":"maghrabi-v38-security/v1","gitSha":"${GITHUB_SHA}","secretScan":true,"iacCriticalGate":true,"securityPolicy":true,"runbook":true,"publicDocsDefaultDisabled":true,"httpSecurityHeaders":true}
+          EOF
+      - name: Upload V38 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v38-security-${{ github.sha }}
+          path: v38-security-evidence.json
+          retention-days: 30
+
+  v39_quality:
+    name: v39-quality
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install exact frontend graph
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build lazy-loaded frontend
+        working-directory: frontend
+        run: npm run build
+      - name: Enforce frontend performance budgets
+        id: budgets
+        working-directory: frontend
+        run: |
+          LARGEST_JS=$(find dist/assets -maxdepth 1 -type f -name '*.js' -printf '%s\n' | sort -nr | head -1)
+          TOTAL_DIST=$(du -sb dist | cut -f1)
+          JS_COUNT=$(find dist/assets -maxdepth 1 -type f -name '*.js' | wc -l | tr -d ' ')
+          echo "Largest JS chunk: ${LARGEST_JS}"
+          echo "Total dist: ${TOTAL_DIST}"
+          echo "JS chunks: ${JS_COUNT}"
+          test "${LARGEST_JS}" -le 900000
+          test "${TOTAL_DIST}" -le 8000000
+          test "${JS_COUNT}" -gt 5
+          echo "largest_js=${LARGEST_JS}" >> "$GITHUB_OUTPUT"
+          echo "total_dist=${TOTAL_DIST}" >> "$GITHUB_OUTPUT"
+          echo "js_count=${JS_COUNT}" >> "$GITHUB_OUTPUT"
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Python syntax and regression tests
+        run: |
+          python -m py_compile backend/app/*.py backend/tests/*.py
+          python -m unittest discover -s backend/tests -p 'test_*.py' -v
+      - name: Write V39 evidence
+        env:
+          LARGEST_JS: ${{ steps.budgets.outputs.largest_js }}
+          TOTAL_DIST: ${{ steps.budgets.outputs.total_dist }}
+          JS_COUNT: ${{ steps.budgets.outputs.js_count }}
+        run: |
+          cat > v39-quality-evidence.json <<EOF
+          {"schema":"maghrabi-v39-quality/v1","gitSha":"${GITHUB_SHA}","node":"22","typescriptBuild":true,"pythonSyntax":true,"regressionTests":true,"lazyRouteChunks":true,"largestJsBytes":${LARGEST_JS},"totalDistBytes":${TOTAL_DIST},"jsChunkCount":${JS_COUNT},"largestJsBudgetBytes":900000,"totalDistBudgetBytes":8000000}
+          EOF
+      - name: Upload V39 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v39-quality-${{ github.sha }}
+          path: v39-quality-evidence.json
+          retention-days: 30
+
+  v40_final:
+    name: v40-final
+    needs: [v35_oci, v36_runtime, v37_dr, v38_security, v39_quality]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Write non-waivable final readiness evidence
+        env:
+          DIGEST_HEX: ${{ needs.v35_oci.outputs.digest_hex }}
+        run: |
+          echo "$DIGEST_HEX" | grep -Eq '^[0-9a-f]{64}$'
+          cat > v40-final-readiness.json <<EOF
+          {"schema":"maghrabi-v40-final/v1","repository":"${GITHUB_REPOSITORY}","gitSha":"${GITHUB_SHA}","workflowRunId":"${GITHUB_RUN_ID}","containerArtifactSha256":"${DIGEST_HEX}","v35Container":true,"v36Runtime":true,"v37DisasterRecovery":true,"v38SecurityPrivacy":true,"v39PerformanceQuality":true,"waiversAllowed":false,"productionReady":true}
+          EOF
+          sha256sum v40-final-readiness.json > v40-final-readiness.sha256
+      - name: Attest final readiness evidence
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: v40-final-readiness.json
+      - name: Upload V40 final evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v40-final-${{ github.sha }}-${{ needs.v35_oci.outputs.digest_hex }}
+          path: |
+            v40-final-readiness.json
+            v40-final-readiness.sha256
+            docs/PRODUCTION_RUNBOOK.md
+            docs/PROJECT_COMPLETION_CHECKLIST.md
+            SECURITY.md
+          if-no-files-found: error
+          retention-days: 90
