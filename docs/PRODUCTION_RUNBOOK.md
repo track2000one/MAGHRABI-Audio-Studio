@@ -63,9 +63,11 @@ Never reuse evidence from a different SHA.
 
 The final Docker image is built from the source-controlled Dockerfile, exported as an immutable Docker archive, identified by SHA-256, scanned by Trivy, assigned a CycloneDX SBOM, and given GitHub OIDC provenance. External registry signing is not claimed by the current pipeline.
 
+The CPU ML dependency line is the matched `torch==2.6.0+cpu` / `torchaudio==2.6.0+cpu` pair. It replaced the older Torch line after V35 correctly blocked CVE-2025-32434. Do not weaken the CRITICAL vulnerability gate to restore an older image.
+
 ### V36 — Runtime & E2E Verification
 
-The exact V35 archive is downloaded, SHA-256 verified, loaded with Docker, and executed. The pipeline validates the media/ML runtime, FastAPI health, authentication configuration, frontend availability, V40 liveness, security response headers, and that public FastAPI docs remain disabled by default.
+The exact V35 archive is downloaded, SHA-256 verified, loaded with Docker, and executed. The pipeline validates the media/ML runtime, FastAPI health, authentication configuration, frontend availability, V40 liveness, security response headers, and that public FastAPI docs remain disabled by default. This is also the compatibility proof for the current PyTorch/TorchAudio/Demucs combination.
 
 ### V37 — Backup/Restore & Disaster Recovery
 
@@ -141,6 +143,6 @@ For a suspected credential leak, rotate the credential immediately. Deleting a G
 
 - Demucs is CPU-bound and intentionally configured with a low worker count on Railway.
 - Very large or long media jobs can be slow and memory intensive.
-- Python 3.10 and Torch 2.0.1/TorchAudio 2.0.2 are compatibility pins and require a planned migration rather than an automatic major upgrade.
+- Python 3.10 and Torch 2.6.0/TorchAudio 2.6.0 are current compatibility/security pins. Future upgrades require the same locked-dependency, vulnerability, runtime and media-regression gates.
 - V40 proves GitHub build/runtime evidence for an immutable image archive; it does not claim an external registry signature.
 - Railway deployment state itself must still be confirmed from Railway/public health because this repository has no direct Railway control-plane connector.
