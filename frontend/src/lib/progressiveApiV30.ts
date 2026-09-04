@@ -130,6 +130,10 @@ export async function pauseReleaseV30(id: string): Promise<V30Release> {
   return request(`/api/video/v30/admin/releases/${encodeURIComponent(id)}/pause`, 'POST')
 }
 
+export async function resumeReleaseV30(id: string): Promise<V30Release> {
+  return request(`/api/video/v30/admin/releases/${encodeURIComponent(id)}/resume`, 'POST')
+}
+
 export async function saveFlagV30(payload: Partial<V30Flag> & { key: string }): Promise<V30Flag> {
   return request('/api/video/v30/admin/flags', 'POST', payload)
 }
