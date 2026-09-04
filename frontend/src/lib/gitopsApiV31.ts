@@ -88,8 +88,8 @@ async function parse<T>(response: Response): Promise<T> {
   }
 }
 
-async function request<T>(url: string, method: 'POST' | 'DELETE', body?: unknown): Promise<T> {
-  const headers = new Headers({ 'Content-Type': 'application/json' })
+async function request<T>(url: string, method: 'POST' | 'DELETE', body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
+  const headers = new Headers({ 'Content-Type': 'application/json', ...(extraHeaders || {}) })
   const csrf = csrfToken()
   if (csrf) headers.set('X-MAGHRABI-CSRF', csrf)
   return parse<T>(await fetch(url, {
@@ -116,12 +116,22 @@ export function approveReleaseV31(id: string, environment: string, decision: 'ap
   return request<Record<string, any>>(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/approve`, 'POST', { environment, decision, reason })
 }
 
-export function promoteReleaseV31(id: string, overrideFreeze = false, overrideReason = ''): Promise<V31Release> {
-  return request<V31Release>(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/promote`, 'POST', { overrideFreeze, overrideReason })
+export function promoteReleaseV31(id: string, targetEnvironment: string, overrideFreeze = false, overrideReason = ''): Promise<V31Release> {
+  return request<V31Release>(
+    `/api/video/v31/admin/releases/${encodeURIComponent(id)}/promote`,
+    'POST',
+    { targetEnvironment, overrideFreeze, overrideReason },
+    { 'X-V31-Target-Environment': targetEnvironment },
+  )
 }
 
-export function rollbackReleaseV31(id: string, targetSha?: string, environment?: string): Promise<V31Release> {
-  return request<V31Release>(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/rollback`, 'POST', { targetSha, environment })
+export function rollbackReleaseV31(id: string, targetSha: string, environment?: string): Promise<V31Release> {
+  return request<V31Release>(
+    `/api/video/v31/admin/releases/${encodeURIComponent(id)}/rollback`,
+    'POST',
+    { targetSha, environment },
+    { 'X-V31-Rollback-Sha': targetSha },
+  )
 }
 
 export function createFreezeV31(payload: { name: string; startAt: string; endAt: string; reason: string }): Promise<V31Freeze> {
