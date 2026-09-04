@@ -9,9 +9,11 @@ function findScrubTarget(playhead: HTMLElement) {
   const timeline = playhead.parentElement
   if (!timeline) return null
 
-  // The adjustment lane is the final row in V12 and only updates playhead time,
-  // so scrubbing through it never triggers Razor edits on video/audio tracks.
-  const adjustmentRow = timeline.lastElementChild as HTMLElement | null
+  // Locate V12's dedicated adjustment row explicitly. Professional overlay
+  // elements are appended after it, so relying on lastElementChild is unsafe.
+  const adjustmentRow = Array.from(timeline.children).find((child) => {
+    return child instanceof HTMLElement && child.className.includes('h-[52px]')
+  }) as HTMLElement | undefined
   const target = adjustmentRow?.lastElementChild as HTMLElement | null
   return target || null
 }
@@ -61,7 +63,6 @@ function collectSnapClientXs(timeline: HTMLElement, playhead: HTMLElement, inclu
   const values: number[] = []
   const timelineRect = timeline.getBoundingClientRect()
 
-  // Clip/audio/adjustment boundaries.
   timeline.querySelectorAll<HTMLElement>('button[style*="left"][style*="width"]').forEach((element) => {
     if (element === exclude || element.closest('.maghrabi-time-ruler')) return
     const rect = element.getBoundingClientRect()
@@ -69,7 +70,6 @@ function collectSnapClientXs(timeline: HTMLElement, playhead: HTMLElement, inclu
     values.push(rect.left, rect.right)
   })
 
-  // Timeline In/Out guides and other narrow authored guide lines.
   timeline.querySelectorAll<HTMLElement>('div[style*="left"]').forEach((element) => {
     if (element === playhead || element.closest('.maghrabi-time-ruler')) return
     const rect = element.getBoundingClientRect()
@@ -110,12 +110,7 @@ export default function StudioTimelineEnhancer() {
       if (!playhead) return
       const timeline = playhead.parentElement as HTMLElement | null
       if (!timeline) return
-
-      if (playhead.dataset.maghrabiProfessionalTimeline === '1') {
-        const ruler = timeline.querySelector<HTMLElement>('.maghrabi-time-ruler')
-        if (ruler) renderRuler(ruler, timeline)
-        return
-      }
+      if (playhead.dataset.maghrabiProfessionalTimeline === '1') return
 
       enhancementCleanup?.()
       playhead.dataset.maghrabiProfessionalTimeline = '1'
@@ -151,6 +146,57 @@ export default function StudioTimelineEnhancer() {
         snapGuide.classList.add('is-visible')
       }
       const hideSnapGuide = () => snapGuide.classList.remove('is-visible')
+
+      const renderRuler = (rulerElement: HTMLElement, timelineElement: HTMLElement) => {
+        const zoom = parseZoom()
+        const signature = `${zoom}:${timelineElement.offsetWidth}:${snapEnabled}`
+        if (rulerElement.dataset.signature === signature) return
+        rulerElement.dataset.signature = signature
+        rulerElement.replaceChildren()
+
+        const corner = document.createElement('div')
+        corner.className = 'maghrabi-ruler-corner'
+        const title = document.createElement('span')
+        title.textContent = 'TIME'
+        corner.appendChild(title)
+        const snapToggle = document.createElement('button')
+        snapToggle.type = 'button'
+        snapToggle.className = `maghrabi-snap-toggle${snapEnabled ? ' is-on' : ''}`
+        snapToggle.textContent = snapEnabled ? 'SNAP ON' : 'SNAP OFF'
+        snapToggle.title = 'Magnetic Snap · اضغط Alt أثناء السحب لتعطيله مؤقتًا'
+        snapToggle.addEventListener('pointerdown', (event) => event.stopPropagation())
+        snapToggle.addEventListener('click', (event) => {
+          event.stopPropagation()
+          snapEnabled = !snapEnabled
+          localStorage.setItem(SNAP_KEY, snapEnabled ? '1' : '0')
+          rulerElement.dataset.signature = ''
+          renderRuler(rulerElement, timelineElement)
+          hideSnapGuide()
+        })
+        corner.appendChild(snapToggle)
+        rulerElement.appendChild(corner)
+
+        const major = majorStepForZoom(zoom)
+        const minor = major / 5
+        const totalSeconds = Math.max(0, (timelineElement.offsetWidth - HEADER_WIDTH) / zoom)
+        const maxTicks = 600
+        const count = Math.min(maxTicks, Math.ceil(totalSeconds / minor) + 1)
+        const fragment = document.createDocumentFragment()
+        for (let index = 0; index < count; index++) {
+          const time = index * minor
+          const isMajor = Math.abs((time / major) - Math.round(time / major)) < 0.001
+          const tick = document.createElement('div')
+          tick.className = `maghrabi-ruler-tick${isMajor ? ' is-major' : ''}`
+          tick.style.left = `${HEADER_WIDTH + time * zoom}px`
+          if (isMajor) {
+            const label = document.createElement('span')
+            label.textContent = formatTime(time)
+            tick.appendChild(label)
+          }
+          fragment.appendChild(tick)
+        }
+        rulerElement.appendChild(fragment)
+      }
 
       const scrub = (clientX: number, bypassSnap = false) => {
         const target = findScrubTarget(playhead)
@@ -288,14 +334,27 @@ export default function StudioTimelineEnhancer() {
       }
 
       const scroller = timeline.parentElement as HTMLElement | null
+      const zoomInput = findZoomInput()
+      const onZoomInput = () => {
+        ruler.dataset.signature = ''
+        requestAnimationFrame(() => renderRuler(ruler, timeline))
+      }
+      zoomInput?.addEventListener('input', onZoomInput)
+
+      const resizeObserver = typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            ruler.dataset.signature = ''
+            renderRuler(ruler, timeline)
+          })
+        : null
+      resizeObserver?.observe(timeline)
+
       const onWheel = (event: WheelEvent) => {
-        if (!(event.ctrlKey || event.metaKey) || !scroller) return
-        const input = findZoomInput()
-        if (!input) return
+        if (!(event.ctrlKey || event.metaKey) || !scroller || !zoomInput) return
         event.preventDefault()
-        const current = Number(input.value) || 12
-        const min = Number(input.min) || 5
-        const max = Number(input.max) || 30
+        const current = Number(zoomInput.value) || 12
+        const min = Number(zoomInput.min) || 5
+        const max = Number(zoomInput.max) || 30
         const next = Math.min(max, Math.max(min, current + (event.deltaY < 0 ? 2 : -2)))
         if (next === current) return
 
@@ -303,64 +362,14 @@ export default function StudioTimelineEnhancer() {
         const localX = event.clientX - rect.left
         const anchorContentX = scroller.scrollLeft + localX
         const anchorTime = Math.max(0, (anchorContentX - HEADER_WIDTH) / current)
-        input.value = String(next)
-        input.dispatchEvent(new Event('input', { bubbles: true }))
-        input.dispatchEvent(new Event('change', { bubbles: true }))
+        zoomInput.value = String(next)
+        zoomInput.dispatchEvent(new Event('input', { bubbles: true }))
+        zoomInput.dispatchEvent(new Event('change', { bubbles: true }))
         requestAnimationFrame(() => {
           scroller.scrollLeft = Math.max(0, HEADER_WIDTH + anchorTime * next - localX)
+          ruler.dataset.signature = ''
           renderRuler(ruler, timeline)
         })
-      }
-
-      const renderRuler = (rulerElement: HTMLElement, timelineElement: HTMLElement) => {
-        const zoom = parseZoom()
-        const signature = `${zoom}:${timelineElement.offsetWidth}:${snapEnabled}`
-        if (rulerElement.dataset.signature === signature) return
-        rulerElement.dataset.signature = signature
-        rulerElement.replaceChildren()
-
-        const corner = document.createElement('div')
-        corner.className = 'maghrabi-ruler-corner'
-        const title = document.createElement('span')
-        title.textContent = 'TIME'
-        corner.appendChild(title)
-        const snapToggle = document.createElement('button')
-        snapToggle.type = 'button'
-        snapToggle.className = `maghrabi-snap-toggle${snapEnabled ? ' is-on' : ''}`
-        snapToggle.textContent = snapEnabled ? 'SNAP ON' : 'SNAP OFF'
-        snapToggle.title = 'Magnetic Snap · اضغط Alt أثناء السحب لتعطيله مؤقتًا'
-        snapToggle.addEventListener('pointerdown', (event) => event.stopPropagation())
-        snapToggle.addEventListener('click', (event) => {
-          event.stopPropagation()
-          snapEnabled = !snapEnabled
-          localStorage.setItem(SNAP_KEY, snapEnabled ? '1' : '0')
-          rulerElement.dataset.signature = ''
-          renderRuler(rulerElement, timelineElement)
-          hideSnapGuide()
-        })
-        corner.appendChild(snapToggle)
-        rulerElement.appendChild(corner)
-
-        const major = majorStepForZoom(zoom)
-        const minor = major / 5
-        const totalSeconds = Math.max(0, (timelineElement.offsetWidth - HEADER_WIDTH) / zoom)
-        const maxTicks = 600
-        const count = Math.min(maxTicks, Math.ceil(totalSeconds / minor) + 1)
-        const fragment = document.createDocumentFragment()
-        for (let index = 0; index < count; index++) {
-          const time = index * minor
-          const isMajor = Math.abs((time / major) - Math.round(time / major)) < 0.001
-          const tick = document.createElement('div')
-          tick.className = `maghrabi-ruler-tick${isMajor ? ' is-major' : ''}`
-          tick.style.left = `${HEADER_WIDTH + time * zoom}px`
-          if (isMajor) {
-            const label = document.createElement('span')
-            label.textContent = formatTime(time)
-            tick.appendChild(label)
-          }
-          fragment.appendChild(tick)
-        }
-        rulerElement.appendChild(fragment)
       }
 
       ruler.addEventListener('pointerdown', onRulerDown)
@@ -385,6 +394,8 @@ export default function StudioTimelineEnhancer() {
         timeline.removeEventListener('dragover', onDragOverCapture, true)
         timeline.removeEventListener('drop', onDropCapture, true)
         scroller?.removeEventListener('wheel', onWheel)
+        zoomInput?.removeEventListener('input', onZoomInput)
+        resizeObserver?.disconnect()
         ruler.remove()
         snapGuide.remove()
         hoverGuide.remove()
