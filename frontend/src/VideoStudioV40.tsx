@@ -85,7 +85,7 @@ export default function VideoStudioV40() {
         <div className="mx-auto flex max-w-[1850px] flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-[11px] font-black tracking-[.14em] text-cyan-300">
-              <ShieldCheck className="h-4 w-4" /> FINAL · IMMUTABLE · SIGNED · TESTED · RECOVERABLE · NON-WAIVABLE
+              <ShieldCheck className="h-4 w-4" /> FINAL · IMMUTABLE · ATTESTED · TESTED · RECOVERABLE · NON-WAIVABLE
             </div>
             <h1 className="mt-1 text-2xl font-black">MAGHRABI Studio · Creator V40</h1>
             <p className="mt-1 text-xs text-slate-500">Final Production Readiness Control Room</p>
@@ -118,10 +118,10 @@ export default function VideoStudioV40() {
             <div className="text-[10px] font-bold text-slate-500">FINAL PIPELINE</div>
             <div className="mt-1 text-sm font-black">{pipeline?.success ? 'PASS' : pipeline?.available ? String(pipeline.status || 'RUNNING').toUpperCase() : 'NOT RUN'}</div>
           </div>
-          <div className={`rounded-2xl border p-4 ${pipeline?.imageDigestSha256 ? 'border-emerald-400/25 bg-emerald-500/10' : 'border-amber-400/25 bg-amber-500/10'}`}>
+          <div className={`rounded-2xl border p-4 ${pipeline?.containerArtifactSha256 ? 'border-emerald-400/25 bg-emerald-500/10' : 'border-amber-400/25 bg-amber-500/10'}`}>
             <Fingerprint className="mb-2 h-5 w-5 text-cyan-300" />
-            <div className="text-[10px] font-bold text-slate-500">OCI DIGEST</div>
-            <div className="mt-1 font-mono text-sm font-black">{short(pipeline?.imageDigestSha256, 16)}</div>
+            <div className="text-[10px] font-bold text-slate-500">CONTAINER ARTIFACT SHA-256</div>
+            <div className="mt-1 font-mono text-sm font-black">{short(pipeline?.containerArtifactSha256, 16)}</div>
           </div>
           <div className={`rounded-2xl border p-4 ${readiness?.attestation.present ? 'border-emerald-400/25 bg-emerald-500/10' : 'border-amber-400/25 bg-amber-500/10'}`}>
             <PackageCheck className="mb-2 h-5 w-5 text-cyan-300" />
@@ -150,10 +150,10 @@ export default function VideoStudioV40() {
               </div>
               <div className="text-left text-xs text-slate-500">آخر تقييم<br /><b className="text-slate-300">{when(readiness?.evaluatedAt)}</b></div>
             </div>
-            {pipeline?.immutableImage && (
+            {pipeline?.immutableArtifact && (
               <div className="mt-4 rounded-2xl border border-cyan-300/15 bg-black/20 p-4">
-                <div className="text-[10px] font-black tracking-widest text-cyan-300">IMMUTABLE PRODUCTION IMAGE</div>
-                <div className="mt-2 break-all font-mono text-xs text-slate-300">{pipeline.immutableImage}</div>
+                <div className="text-[10px] font-black tracking-widest text-cyan-300">IMMUTABLE TESTED CONTAINER ARTIFACT</div>
+                <div className="mt-2 break-all font-mono text-xs text-slate-300">{pipeline.immutableArtifact}</div>
               </div>
             )}
           </section>
@@ -209,9 +209,9 @@ export default function VideoStudioV40() {
           <h2 className="font-black">FINAL POLICY</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-xl bg-black/20 p-3 text-xs">Waivers <b className="float-left text-emerald-300">DISABLED</b></div>
-            <div className="rounded-xl bg-black/20 p-3 text-xs">Immutable OCI <b className="float-left text-emerald-300">REQUIRED</b></div>
+            <div className="rounded-xl bg-black/20 p-3 text-xs">Immutable container artifact <b className="float-left text-emerald-300">REQUIRED</b></div>
             <div className="rounded-xl bg-black/20 p-3 text-xs">All stages <b className="float-left text-emerald-300">REQUIRED</b></div>
-            <div className="rounded-xl bg-black/20 p-3 text-xs">Promotion on failure <b className="float-left text-rose-300">BLOCKED</b></div>
+            <div className="rounded-xl bg-black/20 p-3 text-xs">Registry signature <b className="float-left text-slate-400">NOT CLAIMED</b></div>
           </div>
           {pipeline?.finalArtifact && <div className="mt-4 break-all rounded-xl border border-white/10 p-3 font-mono text-[10px] text-slate-500">Evidence: {pipeline.finalArtifact.name} · archive {pipeline.finalArtifact.archiveDigest || '—'}</div>}
         </section>
