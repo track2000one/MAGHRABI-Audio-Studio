@@ -1,60 +1,153 @@
-# MAGHRABI Audio Studio
+# MAGHRABI Studio
 
-AI-powered web studio for separating audio into independent stems such as vocals, drums, bass and other instruments.
+Professional web-based audio/video production studio with a production-grade release, security, reliability and artifact-verification pipeline.
+
+## Current production line
+
+The current control room is **Creator V40 – Final Production Readiness**.
+
+- `#video` → Creator V40 final readiness
+- `#video-v34` → Hermetic build/artifact evidence
+- earlier `#video-vN` routes remain available for historical inspection and rollback
+- `#tools` → audio tools
+
+Production identity is bound to:
+
+1. one exact Git candidate SHA; and
+2. one immutable OCI image digest (`image@sha256:...`).
+
+Mutable tags are not treated as release identity.
+
+## Application capabilities
+
+The project evolved from audio stem separation into a broader media studio and production platform. Current code includes:
+
+- Demucs 2-stem / 4-stem audio separation.
+- FFmpeg audio trim, merge, enhancement and conversion tools.
+- Multi-generation browser video editor with timeline, titles, subtitles, music, image overlays, PiP, transitions, filters, chroma key, privacy masks, speed ramps, reverse/freeze, silence detection, audio ducking and project persistence.
+- Authentication, team/enterprise, review and secured administration surfaces.
+- Reliability, observability, SLO/capacity, progressive-delivery and GitOps layers.
+- Supply-chain, reproducible-build, SBOM, vulnerability and provenance gates.
+- Verified backup/restore and disaster-recovery tooling.
+- Final V40 non-waivable Production Readiness gate.
 
 ## Stack
 
-- React + Vite + TypeScript
-- Tailwind CSS
+- React 18 + Vite + TypeScript + Tailwind CSS
 - FastAPI
-- Demucs + FFmpeg
-- Docker
-- GitHub + Railway
+- FFmpeg
+- Demucs 4.0.1
+- CPU PyTorch 2.0.1 / TorchAudio 2.0.2 compatibility stack
+- Docker multi-stage production image
+- SQLite fallback / optional PostgreSQL control-plane database
+- GitHub Actions + GHCR
+- Railway deployment
 
-## V1 features
+## Dependency integrity
 
-- Upload MP3, WAV, FLAC, M4A, AAC or OGG
-- Two-stem separation: Vocals / Instrumental
-- Four-stem separation: Vocals / Drums / Bass / Other
-- Processing status and progress polling
-- Independent audio preview for each stem
-- Download every separated stem as WAV
-- Responsive dark studio interface
+Frontend dependencies are installed with source-controlled `frontend/package-lock.json` and `npm ci`.
+
+Python uses `backend/requirements.lock.txt`, a transitive lock generated with SHA-256 hashes. The Docker build installs it with `pip --require-hashes`. The protected CPU ML stack is part of the same lock.
+
+## Production verification chain
+
+The final release chain is:
+
+```text
+V31 GitOps
+  ↓
+V32 Supply Chain
+  ↓
+V33 Reproducible Build / Provenance
+  ↓
+V34 Hermetic Artifact Verification
+  ↓
+V35 OCI Image / SBOM / Scan / Signature
+  ↓
+V36 Runtime & E2E Smoke Verification
+  ↓
+V37 Backup / Restore / Disaster Recovery
+  ↓
+V38 Security & Privacy Hardening
+  ↓
+V39 Performance & Regression Quality
+  ↓
+V40 Final Production Readiness
+  ↓
+Production
+```
+
+V40 does not provide a waiver mechanism. Production is blocked when any required final stage does not succeed for the active candidate SHA.
 
 ## Railway deployment
 
-V1 is intentionally packaged as one Railway service. The Docker image builds the React frontend and FastAPI serves both the API and compiled frontend. Audio processing runs in the same service so the frontend, API and generated audio do not need cross-service file transfer.
+Railway builds from the root `Dockerfile`. Add a persistent volume mounted at `/data` and configure strong authentication variables.
 
-1. Create a Railway project from this GitHub repository.
-2. Railway detects the root `Dockerfile` and `railway.json`.
-3. Add a persistent Railway Volume mounted at `/data`.
-4. Generate a public domain.
-5. Optional variables:
-   - `DATA_DIR=/data`
-   - `MAX_UPLOAD_MB=250`
-   - `DEMUCS_MODEL=htdemucs`
-   - `MAX_WORKERS=1`
+Minimum required variables:
 
-Demucs runs on CPU in this first Railway version. A dedicated GPU worker can be introduced later without replacing the React application.
-
-## Local development
-
-Backend:
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+```text
+ADMIN_USERNAME=<production username>
+ADMIN_PASSWORD=<strong secret>
+AUTH_SECRET=<random secret of at least 32 characters>
+DATA_DIR=/data
+ENABLE_API_DOCS=0
 ```
 
-Frontend:
+Recommended production configuration is documented in `.env.example` and `docs/PRODUCTION_RUNBOOK.md`.
+
+Health endpoint:
+
+```text
+GET /api/health
+```
+
+Final readiness endpoint:
+
+```text
+GET /api/video/v40/release/ready
+```
+
+A successful GitHub pipeline does **not** by itself prove that Railway is deployed and healthy. Railway health must be confirmed from the deployed service/public health endpoint.
+
+## Local frontend development
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Vite proxies `/api` to `http://localhost:8000` during local development.
+Vite proxies `/api` to the local backend during development.
+
+## Local backend development
+
+For compatibility with the production environment, use Python 3.10 and install from the hash lock:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+python -m pip install --require-hashes \
+  --index-url https://pypi.org/simple \
+  --extra-index-url https://download.pytorch.org/whl/cpu \
+  -r backend/requirements.lock.txt
+uvicorn app.entry:app --app-dir backend --reload --port 8000
+```
+
+## Backup verification
+
+```bash
+python -m app.ops_backup_v37 create /data /path/to/control-plane.tar.gz
+python -m app.ops_backup_v37 verify /path/to/control-plane.tar.gz
+```
+
+See the runbook before restoring production data.
+
+## Documentation
+
+- `docs/PRODUCTION_RUNBOOK.md` — deployment, release, rollback, incident and recovery operations.
+- `docs/PROJECT_COMPLETION_CHECKLIST.md` — final acceptance criteria.
+- `SECURITY.md` — vulnerability reporting and production security posture.
+
+## Important compatibility note
+
+Python 3.10 and the current Torch/TorchAudio pair are intentional compatibility pins for the Railway CPU Demucs stack. They should be migrated through a dedicated compatibility project with media regression tests rather than changed opportunistically.
