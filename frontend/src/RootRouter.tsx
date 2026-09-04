@@ -106,7 +106,21 @@ export default function RootRouter() {
 
   if (route === '#secure') return lazyScreen(<SecurePortalV24 />)
   if (route === '#team') return lazyScreen(<EnterprisePortalV23 />)
-  if (route === '#tools') return lazyScreen(<AudioTools />)
+
+  // Product-facing semantic workspaces.
+  if (route === '#audio' || route === '#tools') return lazyScreen(<AudioTools />)
+  if (route === '#color') return lazyScreen(<VideoStudioV15 />)
+  if (route === '#track') return lazyScreen(<VideoStudioV17 />)
+  if (route === '#smart') return lazyScreen(<VideoStudioV19 />)
+  if (route === '#deliver') return lazyScreen(<VideoStudioV20 />)
+  if (route === '#review-studio') return lazyScreen(<VideoStudioV22 />)
+  if (route === '#operations') return lazyScreen(<VideoStudioV25 />)
+  if (route === '#reliability') return lazyScreen(<VideoStudioV27 />)
+  if (route === '#capacity') return lazyScreen(<VideoStudioV29 />)
+  if (route === '#release') return lazyScreen(<VideoStudioV31 />)
+  if (route === '#readiness') return lazyScreen(<VideoStudioV40 />)
+
+  // Compatibility routes retained for historical links and diagnostics.
   if (route === '#video-basic') return lazyScreen(<VideoStudio />)
   if (route === '#video-v2') return lazyScreen(<VideoStudioPro />)
   if (route === '#video-v3') return lazyScreen(<VideoStudioV3 />)
@@ -141,7 +155,7 @@ export default function RootRouter() {
   if (route === '#video-v32') return lazyScreen(<VideoStudioV32 />)
   if (route === '#video-v33') return lazyScreen(<VideoStudioV33 />)
   if (route === '#video-v34') return lazyScreen(<VideoStudioV34 />)
-  if (route === '#video-v40' || route === '#readiness') return lazyScreen(<VideoStudioV40 />)
+  if (route === '#video-v40') return lazyScreen(<VideoStudioV40 />)
   if (route === '#editor') return lazyScreen(<VideoStudioV12 />)
   if (route === '#video') return lazyScreen(<VideoStudioCreator />)
 
@@ -154,7 +168,7 @@ export default function RootRouter() {
             <Video className="h-4 w-4 text-cyan-300" />
             Video Studio Creator Pro
           </a>
-          <a href="#tools" className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]">
+          <a href="#audio" className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]">
             <SlidersHorizontal className="h-4 w-4 text-cyan-300" />
             أدوات الصوت
           </a>
