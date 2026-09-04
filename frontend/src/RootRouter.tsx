@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
-import { SlidersHorizontal, Video } from 'lucide-react'
+import { ShieldCheck, SlidersHorizontal, Video } from 'lucide-react'
 import App from './App'
 import { getAuthStatus } from './lib/api'
 
@@ -140,7 +140,8 @@ export default function RootRouter() {
   if (route === '#video-v32') return lazyScreen(<VideoStudioV32 />)
   if (route === '#video-v33') return lazyScreen(<VideoStudioV33 />)
   if (route === '#video-v34') return lazyScreen(<VideoStudioV34 />)
-  if (route === '#video') return lazyScreen(<VideoStudioV40 />)
+  if (route === '#video-v40' || route === '#readiness') return lazyScreen(<VideoStudioV40 />)
+  if (route === '#video' || route === '#editor') return lazyScreen(<VideoStudioV12 />)
 
   return (
     <>
@@ -149,11 +150,15 @@ export default function RootRouter() {
         <div className="fixed bottom-5 left-5 z-50 flex flex-col gap-2 sm:flex-row">
           <a href="#video" className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]">
             <Video className="h-4 w-4 text-cyan-300" />
-            Video Studio Creator V40
+            Video Studio Creator Pro
           </a>
           <a href="#tools" className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]">
             <SlidersHorizontal className="h-4 w-4 text-cyan-300" />
             أدوات الصوت
+          </a>
+          <a href="#readiness" className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-emerald-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-emerald-300/40 hover:bg-[#101a2b]">
+            <ShieldCheck className="h-4 w-4 text-emerald-300" />
+            جاهزية الإنتاج
           </a>
         </div>
       )}
