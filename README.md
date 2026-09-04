@@ -32,7 +32,7 @@ The project evolved from audio stem separation into a broader media studio and p
 - FastAPI
 - FFmpeg
 - Demucs 4.0.1
-- CPU PyTorch 2.0.1 / TorchAudio 2.0.2 compatibility stack
+- CPU PyTorch 2.6.0 / TorchAudio 2.6.0 matched security stack
 - Docker multi-stage production image
 - SQLite fallback / optional PostgreSQL control-plane database
 - GitHub Actions
@@ -42,7 +42,7 @@ The project evolved from audio stem separation into a broader media studio and p
 
 Frontend dependencies are installed with source-controlled `frontend/package-lock.json` and `npm ci`.
 
-Python uses `backend/requirements.lock.txt`, a transitive lock generated with SHA-256 hashes. The Docker build installs it with `pip --require-hashes`. The protected CPU ML stack is part of the same lock.
+Python uses `backend/requirements.lock.txt`, a transitive lock generated with SHA-256 hashes. The Docker build installs it with `pip --require-hashes`. The protected CPU ML stack is part of the same lock. PyTorch/TorchAudio were moved to the matched 2.6.0 CPU pair after the final Trivy gate correctly blocked the older Torch line for CVE-2025-32434; the security gate was not waived.
 
 ## Production verification chain
 
@@ -145,4 +145,4 @@ See the runbook before restoring production data.
 
 ## Important compatibility note
 
-Python 3.10 and the current Torch/TorchAudio pair are intentional compatibility pins for the Railway CPU Demucs stack. They should be migrated through a dedicated compatibility project with media regression tests rather than changed opportunistically.
+Python 3.10 and the current Torch/TorchAudio 2.6.0 CPU pair are intentional compatibility pins for the Railway CPU Demucs stack. Any future major change must go through the same locked dependency, container vulnerability, runtime and media regression gates rather than being changed opportunistically.
