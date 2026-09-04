@@ -1,4 +1,5 @@
 import StudioCommandPalette from './StudioCommandPalette'
+import StudioEditingCorePro from './StudioEditingCorePro'
 import StudioProjectStatus from './StudioProjectStatus'
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
 import VideoStudioCreator from './VideoStudioCreator'
@@ -9,6 +10,7 @@ export default function StudioProApp() {
     <div className="maghrabi-studio-pro min-h-screen">
       <VideoStudioCreator />
       <StudioTimelineEnhancer />
+      <StudioEditingCorePro />
       <StudioProjectStatus />
       <StudioCommandPalette />
     </div>
