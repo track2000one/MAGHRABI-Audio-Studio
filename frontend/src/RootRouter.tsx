@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { ShieldCheck, SlidersHorizontal, Video } from 'lucide-react'
 import App from './App'
+import StudioWorkspaceShell from './StudioWorkspaceShell'
 import { getAuthStatus } from './lib/api'
 
 const AudioTools = lazy(() => import('./AudioTools'))
@@ -61,6 +62,10 @@ function lazyScreen(content: ReactNode) {
   return <Suspense fallback={loading}>{content}</Suspense>
 }
 
+function studioScreen(active: string, content: ReactNode) {
+  return lazyScreen(<StudioWorkspaceShell active={active}>{content}</StudioWorkspaceShell>)
+}
+
 export default function RootRouter() {
   const [route, setRoute] = useState(window.location.hash)
   const [authenticated, setAuthenticated] = useState(false)
@@ -107,18 +112,18 @@ export default function RootRouter() {
   if (route === '#secure') return lazyScreen(<SecurePortalV24 />)
   if (route === '#team') return lazyScreen(<EnterprisePortalV23 />)
 
-  // Product-facing semantic workspaces.
-  if (route === '#audio' || route === '#tools') return lazyScreen(<AudioTools />)
-  if (route === '#color') return lazyScreen(<VideoStudioV15 />)
-  if (route === '#track') return lazyScreen(<VideoStudioV17 />)
-  if (route === '#smart') return lazyScreen(<VideoStudioV19 />)
-  if (route === '#deliver') return lazyScreen(<VideoStudioV20 />)
-  if (route === '#review-studio') return lazyScreen(<VideoStudioV22 />)
-  if (route === '#operations') return lazyScreen(<VideoStudioV25 />)
-  if (route === '#reliability') return lazyScreen(<VideoStudioV27 />)
-  if (route === '#capacity') return lazyScreen(<VideoStudioV29 />)
-  if (route === '#release') return lazyScreen(<VideoStudioV31 />)
-  if (route === '#readiness') return lazyScreen(<VideoStudioV40 />)
+  // Product-facing semantic workspaces stay inside one Studio Pro product shell.
+  if (route === '#audio' || route === '#tools') return studioScreen('audio', <AudioTools />)
+  if (route === '#color') return studioScreen('color', <VideoStudioV15 />)
+  if (route === '#track') return studioScreen('track', <VideoStudioV17 />)
+  if (route === '#smart') return studioScreen('smart', <VideoStudioV19 />)
+  if (route === '#deliver') return studioScreen('deliver', <VideoStudioV20 />)
+  if (route === '#review-studio') return studioScreen('review', <VideoStudioV22 />)
+  if (route === '#operations') return studioScreen('operations', <VideoStudioV25 />)
+  if (route === '#reliability') return studioScreen('reliability', <VideoStudioV27 />)
+  if (route === '#capacity') return studioScreen('capacity', <VideoStudioV29 />)
+  if (route === '#release') return studioScreen('release', <VideoStudioV31 />)
+  if (route === '#readiness') return studioScreen('readiness', <VideoStudioV40 />)
 
   // Compatibility routes retained for historical links and diagnostics.
   if (route === '#video-basic') return lazyScreen(<VideoStudio />)
