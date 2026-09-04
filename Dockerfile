@@ -1,7 +1,7 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /frontend
-COPY frontend/package*.json ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
@@ -23,16 +23,15 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY backend/requirements.txt ./requirements.txt
+COPY backend/requirements.lock.txt ./requirements.lock.txt
 
-# Demucs 4.0.1 requires torchaudio < 2.1. Use the matching official CPU
-# PyTorch stack. TorchAudio 2.0.2 predates the TorchCodec save dependency.
+# Creator V34 installs the complete Python graph from the source-controlled
+# SHA-256 lock. The protected CPU Torch stack is part of this same lock.
 RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && python -m pip install --no-cache-dir \
-       torch==2.0.1+cpu \
-       torchaudio==2.0.2+cpu \
-       --index-url https://download.pytorch.org/whl/cpu \
-    && python -m pip install --no-cache-dir -r requirements.txt
+    && python -m pip install --no-cache-dir --require-hashes \
+       --index-url https://pypi.org/simple \
+       --extra-index-url https://download.pytorch.org/whl/cpu \
+       -r requirements.lock.txt
 
 COPY backend/app ./app
 COPY --from=frontend-builder /frontend/dist ./static
