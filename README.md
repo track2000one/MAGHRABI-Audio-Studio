@@ -11,12 +11,7 @@ The current control room is **Creator V40 – Final Production Readiness**.
 - earlier `#video-vN` routes remain available for historical inspection and rollback
 - `#tools` → audio tools
 
-Production identity is bound to:
-
-1. one exact Git candidate SHA; and
-2. one immutable OCI image digest (`image@sha256:...`).
-
-Mutable tags are not treated as release identity.
+Production evidence is bound to one exact Git candidate SHA and one immutable tested Docker image archive identified by SHA-256. Railway still builds the service from the same source-controlled Dockerfile, so Railway deployment health is verified separately rather than inferred from GitHub.
 
 ## Application capabilities
 
@@ -40,7 +35,7 @@ The project evolved from audio stem separation into a broader media studio and p
 - CPU PyTorch 2.0.1 / TorchAudio 2.0.2 compatibility stack
 - Docker multi-stage production image
 - SQLite fallback / optional PostgreSQL control-plane database
-- GitHub Actions + GHCR
+- GitHub Actions
 - Railway deployment
 
 ## Dependency integrity
@@ -62,9 +57,9 @@ V33 Reproducible Build / Provenance
   ↓
 V34 Hermetic Artifact Verification
   ↓
-V35 OCI Image / SBOM / Scan / Signature
+V35 Container Image Archive / SBOM / Vulnerability Gate / OIDC Provenance
   ↓
-V36 Runtime & E2E Smoke Verification
+V36 Exact Artifact Runtime & E2E Smoke Verification
   ↓
 V37 Backup / Restore / Disaster Recovery
   ↓
@@ -77,7 +72,7 @@ V40 Final Production Readiness
 Production
 ```
 
-V40 does not provide a waiver mechanism. Production is blocked when any required final stage does not succeed for the active candidate SHA.
+V40 does not provide a waiver mechanism. Production is blocked when any required final stage does not succeed for the active candidate SHA. External registry signing is deliberately **not claimed** by the current pipeline; GitHub OIDC provenance is created for the immutable container archive instead.
 
 ## Railway deployment
 
