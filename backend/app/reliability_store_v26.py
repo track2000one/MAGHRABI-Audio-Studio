@@ -123,6 +123,7 @@ DEFAULT_SETTINGS = {
     "shutdown.drainSeconds": 20,
     "idempotency.ttlHours": 24,
     "checksum.maxFileMb": 4096,
+    "deployment.requirePostgresForReady": False,
 }
 
 
