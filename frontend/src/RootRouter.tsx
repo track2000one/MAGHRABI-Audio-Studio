@@ -4,6 +4,7 @@ import App from './App'
 import { getAuthStatus } from './lib/api'
 
 const AudioTools = lazy(() => import('./AudioTools'))
+const VideoStudioCreator = lazy(() => import('./VideoStudioCreator'))
 const VideoStudio = lazy(() => import('./VideoStudio'))
 const VideoStudioPro = lazy(() => import('./VideoStudioPro'))
 const VideoStudioV3 = lazy(() => import('./VideoStudioV3'))
@@ -141,7 +142,8 @@ export default function RootRouter() {
   if (route === '#video-v33') return lazyScreen(<VideoStudioV33 />)
   if (route === '#video-v34') return lazyScreen(<VideoStudioV34 />)
   if (route === '#video-v40' || route === '#readiness') return lazyScreen(<VideoStudioV40 />)
-  if (route === '#video' || route === '#editor') return lazyScreen(<VideoStudioV12 />)
+  if (route === '#editor') return lazyScreen(<VideoStudioV12 />)
+  if (route === '#video') return lazyScreen(<VideoStudioCreator />)
 
   return (
     <>
