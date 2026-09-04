@@ -3,6 +3,7 @@ import { getActiveStudioProjectId, touchStudioProject } from './projectHubStore'
 const DB_NAME = 'maghrabi-media-studio'
 const STORE_NAME = 'projects'
 const LEGACY_PROJECT_KEY = 'video-v3-current'
+const LEGACY_MIGRATION_KEY = 'maghrabi-legacy-project-migrated-v1'
 const PROJECT_PREFIX = 'video-project:'
 const DB_VERSION = 1
 
@@ -74,15 +75,18 @@ export async function loadStoredVideoProject<T>(projectId?: string | null) {
     const snapshot = await readSnapshot<T>(db, key)
     if (snapshot) return snapshot
 
-    // One-time compatibility path: when opening the first named project,
-    // copy the historical single-project snapshot into that project.
-    if (activeId && key !== LEGACY_PROJECT_KEY) {
+    // One-time compatibility path. The historical single-project snapshot may
+    // be adopted by the first named Studio project only, never cloned again.
+    const migrationDone = localStorage.getItem(LEGACY_MIGRATION_KEY) === '1'
+    if (activeId && key !== LEGACY_PROJECT_KEY && !migrationDone) {
       const legacy = await readSnapshot<T>(db, LEGACY_PROJECT_KEY)
       if (legacy) {
         await writeSnapshot(db, key, legacy)
+        localStorage.setItem(LEGACY_MIGRATION_KEY, '1')
         touchStudioProject(activeId)
         return legacy
       }
+      localStorage.setItem(LEGACY_MIGRATION_KEY, '1')
     }
     return null
   } finally {
