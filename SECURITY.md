@@ -43,7 +43,7 @@ The current automated pipeline does **not** claim an external registry signature
 
 ## Dependency constraints
 
-The CPU ML stack is intentionally pinned to `torch==2.0.1+cpu` and `torchaudio==2.0.2+cpu` for Demucs compatibility on the current Railway architecture. Python 3.10 is therefore an explicit compatibility constraint and must be reviewed before its runtime support window expires. Do not silently upgrade Torch/TorchAudio in a security-only change; create a compatibility migration with audio regression tests.
+The CPU ML stack is pinned to the matched `torch==2.6.0+cpu` and `torchaudio==2.6.0+cpu` pair. This migration was required because the final Trivy gate correctly identified CVE-2025-32434 as CRITICAL in the older Torch line; the vulnerability gate was not bypassed. Python 3.10 remains an explicit compatibility constraint for the current Demucs/Railway architecture. Future changes to Torch/TorchAudio must pass locked dependency resolution, container vulnerability scanning, V36 runtime verification and media regression tests.
 
 ## Media and privacy
 
