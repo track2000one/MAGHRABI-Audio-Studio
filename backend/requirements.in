@@ -1,0 +1,9 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Runtime application dependencies.
+-r requirements.txt
+
+# Railway CPU ML stack is intentionally frozen here so the transitive lock
+# cannot silently resolve a newer Torch/TorchAudio pair through Demucs.
+torch==2.0.1+cpu
+torchaudio==2.0.2+cpu
