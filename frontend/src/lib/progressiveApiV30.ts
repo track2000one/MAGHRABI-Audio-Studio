@@ -102,8 +102,8 @@ async function request<T>(url: string, method: 'POST' | 'DELETE', body?: unknown
   }))
 }
 
-export function getOverviewV30(): Promise<V30Overview> {
-  return parse(fetch('/api/video/v30/admin/overview', { credentials: 'include' }) as unknown as Response)
+export async function getOverviewV30(): Promise<V30Overview> {
+  return parse(await fetch('/api/video/v30/admin/overview', { credentials: 'include' }))
 }
 
 export async function createReleaseV30(payload: Record<string, any>): Promise<V30Release> {
