@@ -20,6 +20,15 @@ export type StoredVideoProject<T> = {
   quality: string
 }
 
+export type StoredProjectInfo = {
+  exists: boolean
+  savedAt: string | null
+  videoCount: number
+  audioCount: number
+  outputSize: string | null
+  quality: string | null
+}
+
 function openDb() {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
@@ -56,12 +65,17 @@ async function writeSnapshot<T>(db: IDBDatabase, key: string, snapshot: StoredVi
   })
 }
 
+function emitSnapshotChanged(projectId: string | null, savedAt: string | null) {
+  window.dispatchEvent(new CustomEvent('maghrabi-project-snapshot-changed', { detail: { projectId, savedAt } }))
+}
+
 export async function saveStoredVideoProject<T>(snapshot: StoredVideoProject<T>, projectId?: string | null) {
   const db = await openDb()
   const activeId = projectId || getActiveStudioProjectId()
   try {
     await writeSnapshot(db, projectKey(activeId), snapshot)
     if (activeId) touchStudioProject(activeId)
+    emitSnapshotChanged(activeId, snapshot.savedAt)
   } finally {
     db.close()
   }
@@ -84,6 +98,7 @@ export async function loadStoredVideoProject<T>(projectId?: string | null) {
         await writeSnapshot(db, key, legacy)
         localStorage.setItem(LEGACY_MIGRATION_KEY, '1')
         touchStudioProject(activeId)
+        emitSnapshotChanged(activeId, legacy.savedAt)
         return legacy
       }
       localStorage.setItem(LEGACY_MIGRATION_KEY, '1')
@@ -103,15 +118,35 @@ export async function hasStoredVideoProject(projectId?: string | null) {
   }
 }
 
+export async function getStoredVideoProjectInfo(projectId?: string | null): Promise<StoredProjectInfo> {
+  const db = await openDb()
+  try {
+    const snapshot = await readSnapshot<unknown>(db, projectKey(projectId))
+    if (!snapshot) return { exists: false, savedAt: null, videoCount: 0, audioCount: 0, outputSize: null, quality: null }
+    return {
+      exists: true,
+      savedAt: snapshot.savedAt || null,
+      videoCount: snapshot.videos?.length || 0,
+      audioCount: snapshot.audios?.length || 0,
+      outputSize: snapshot.outputSize || null,
+      quality: snapshot.quality || null,
+    }
+  } finally {
+    db.close()
+  }
+}
+
 export async function clearStoredVideoProject(projectId?: string | null) {
+  const activeId = projectId || getActiveStudioProjectId()
   const db = await openDb()
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite')
-      tx.objectStore(STORE_NAME).delete(projectKey(projectId))
+      tx.objectStore(STORE_NAME).delete(projectKey(activeId))
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error || new Error('تعذر حذف المشروع المحفوظ.'))
     })
+    emitSnapshotChanged(activeId, null)
   } finally {
     db.close()
   }
