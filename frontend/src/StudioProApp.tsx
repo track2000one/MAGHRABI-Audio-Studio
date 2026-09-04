@@ -1,5 +1,6 @@
 import StudioCommandPalette from './StudioCommandPalette'
 import StudioEditingCorePro from './StudioEditingCorePro'
+import StudioPrecisionEditPro from './StudioPrecisionEditPro'
 import StudioProjectStatus from './StudioProjectStatus'
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
 import VideoStudioCreator from './VideoStudioCreator'
@@ -11,6 +12,7 @@ export default function StudioProApp() {
       <VideoStudioCreator />
       <StudioTimelineEnhancer />
       <StudioEditingCorePro />
+      <StudioPrecisionEditPro />
       <StudioProjectStatus />
       <StudioCommandPalette />
     </div>
