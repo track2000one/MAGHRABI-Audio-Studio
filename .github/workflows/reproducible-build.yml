@@ -1,0 +1,105 @@
+name: V33 Reproducible Build Evidence
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  reproducible-frontend:
+    runs-on: ubuntu-latest
+    env:
+      TZ: UTC
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install exact dependency graph
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Set reproducible build epoch
+        run: echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+
+      - name: Build candidate A
+        working-directory: frontend
+        run: npm run build
+
+      - name: Fingerprint candidate A
+        run: |
+          find frontend/dist -type f -print0 | sort -z | xargs -0 sha256sum | sed 's#  frontend/dist/#  #' > /tmp/v33-build-a.sha256
+          tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" --owner=0 --group=0 --numeric-owner -cf - frontend/dist | gzip -n > /tmp/v33-build-a.tar.gz
+          sha256sum /tmp/v33-build-a.tar.gz | awk '{print $1}' > /tmp/v33-build-a.digest
+
+      - name: Build candidate B from clean output
+        working-directory: frontend
+        run: |
+          rm -rf dist
+          npm run build
+
+      - name: Fingerprint candidate B and compare
+        run: |
+          find frontend/dist -type f -print0 | sort -z | xargs -0 sha256sum | sed 's#  frontend/dist/#  #' > /tmp/v33-build-b.sha256
+          tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" --owner=0 --group=0 --numeric-owner -cf - frontend/dist | gzip -n > /tmp/v33-build-b.tar.gz
+          sha256sum /tmp/v33-build-b.tar.gz | awk '{print $1}' > /tmp/v33-build-b.digest
+          diff -u /tmp/v33-build-a.sha256 /tmp/v33-build-b.sha256
+          test "$(cat /tmp/v33-build-a.digest)" = "$(cat /tmp/v33-build-b.digest)"
+
+      - name: Prepare canonical deploy artifact
+        run: cp /tmp/v33-build-b.tar.gz v33-frontend-dist.tar.gz
+
+      - name: GitHub OIDC build provenance
+        id: attest
+        continue-on-error: true
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: v33-frontend-dist.tar.gz
+
+      - name: Write reproducibility evidence
+        env:
+          ATTEST_OUTCOME: ${{ steps.attest.outcome }}
+        run: |
+          cp /tmp/v33-build-a.sha256 v33-build-a.sha256
+          cp /tmp/v33-build-b.sha256 v33-build-b.sha256
+          LOCK_SHA=$(sha256sum frontend/package-lock.json | awk '{print $1}')
+          ARTIFACT_SHA=$(sha256sum v33-frontend-dist.tar.gz | awk '{print $1}')
+          cat > v33-repro-evidence.json <<EOF
+          {
+            "schema":"maghrabi-v33-repro/v1",
+            "repository":"${GITHUB_REPOSITORY}",
+            "gitSha":"${GITHUB_SHA}",
+            "sourceDateEpoch":"${SOURCE_DATE_EPOCH}",
+            "node":"20",
+            "packageLockSha256":"${LOCK_SHA}",
+            "artifactSha256":"${ARTIFACT_SHA}",
+            "buildA":"$(cat /tmp/v33-build-a.digest)",
+            "buildB":"$(cat /tmp/v33-build-b.digest)",
+            "reproducible":true,
+            "githubOidcAttestationOutcome":"${ATTEST_OUTCOME}"
+          }
+          EOF
+
+      - name: Upload V33 evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v33-repro-evidence-${{ github.sha }}
+          path: |
+            v33-repro-evidence.json
+            v33-build-a.sha256
+            v33-build-b.sha256
+            v33-frontend-dist.tar.gz
+            frontend/package-lock.json
+          if-no-files-found: error
+          retention-days: 30
