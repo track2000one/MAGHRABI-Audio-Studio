@@ -38,6 +38,7 @@ const VideoStudioV31 = lazy(() => import('./VideoStudioV31'))
 const VideoStudioV32 = lazy(() => import('./VideoStudioV32'))
 const VideoStudioV33 = lazy(() => import('./VideoStudioV33'))
 const VideoStudioV34 = lazy(() => import('./VideoStudioV34'))
+const VideoStudioV40 = lazy(() => import('./VideoStudioV40'))
 const ReviewPortalV22 = lazy(() => import('./ReviewPortalV22'))
 const EnterprisePortalV23 = lazy(() => import('./EnterprisePortalV23'))
 const InviteAcceptV23 = lazy(() => import('./InviteAcceptV23'))
@@ -138,7 +139,8 @@ export default function RootRouter() {
   if (route === '#video-v31') return lazyScreen(<VideoStudioV31 />)
   if (route === '#video-v32') return lazyScreen(<VideoStudioV32 />)
   if (route === '#video-v33') return lazyScreen(<VideoStudioV33 />)
-  if (route === '#video') return lazyScreen(<VideoStudioV34 />)
+  if (route === '#video-v34') return lazyScreen(<VideoStudioV34 />)
+  if (route === '#video') return lazyScreen(<VideoStudioV40 />)
 
   return (
     <>
@@ -147,7 +149,7 @@ export default function RootRouter() {
         <div className="fixed bottom-5 left-5 z-50 flex flex-col gap-2 sm:flex-row">
           <a href="#video" className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]">
             <Video className="h-4 w-4 text-cyan-300" />
-            Video Studio Creator V34
+            Video Studio Creator V40
           </a>
           <a href="#tools" className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]">
             <SlidersHorizontal className="h-4 w-4 text-cyan-300" />
