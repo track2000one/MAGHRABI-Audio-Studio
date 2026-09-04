@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import Request
 
 CSP = "; ".join(
@@ -31,6 +33,10 @@ SECURITY_HEADERS = {
 }
 
 
+def _truthy(value: str | None) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def is_https_request(request: Request) -> bool:
     forwarded = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip().lower()
     return request.url.scheme == "https" or forwarded == "https"
@@ -47,10 +53,18 @@ def is_sensitive_path(path: str) -> bool:
     )
 
 
+def _disable_public_docs(app) -> None:
+    if _truthy(os.getenv("ENABLE_API_DOCS")):
+        return
+    blocked = {"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
+    app.router.routes[:] = [route for route in app.router.routes if getattr(route, "path", None) not in blocked]
+
+
 def install_security_hardening(app) -> None:
     if getattr(app.state, "v38_security_headers_installed", False):
         return
     app.state.v38_security_headers_installed = True
+    _disable_public_docs(app)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
