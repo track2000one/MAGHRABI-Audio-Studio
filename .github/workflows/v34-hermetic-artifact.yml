@@ -1,0 +1,187 @@
+name: V34 Hermetic Artifact Security
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  build-ubuntu-22:
+    runs-on: ubuntu-22.04
+    env:
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install exact graph
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build on Ubuntu 22.04
+        run: |
+          export SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)
+          cd frontend
+          npm run build
+          find dist -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > ../v34-files.sha256
+          tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" --owner=0 --group=0 --numeric-owner -cf - dist | gzip -n > ../v34-frontend.tar.gz
+          cd ..
+          sha256sum v34-frontend.tar.gz | awk '{print $1}' > v34-artifact.digest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v34-builder-ubuntu22
+          path: |
+            v34-files.sha256
+            v34-frontend.tar.gz
+            v34-artifact.digest
+          retention-days: 7
+
+  build-ubuntu-24:
+    runs-on: ubuntu-24.04
+    env:
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install exact graph
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build on Ubuntu 24.04
+        run: |
+          export SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)
+          cd frontend
+          npm run build
+          find dist -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > ../v34-files.sha256
+          tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" --owner=0 --group=0 --numeric-owner -cf - dist | gzip -n > ../v34-frontend.tar.gz
+          cd ..
+          sha256sum v34-frontend.tar.gz | awk '{print $1}' > v34-artifact.digest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v34-builder-ubuntu24
+          path: |
+            v34-files.sha256
+            v34-frontend.tar.gz
+            v34-artifact.digest
+          retention-days: 7
+
+  verify-artifact:
+    needs: [build-ubuntu-22, build-ubuntu-24]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Ubuntu 22 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: v34-builder-ubuntu22
+          path: /tmp/v34-a
+      - name: Download Ubuntu 24 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: v34-builder-ubuntu24
+          path: /tmp/v34-b
+      - name: Prove cross-run reproducibility
+        run: |
+          diff -u /tmp/v34-a/v34-files.sha256 /tmp/v34-b/v34-files.sha256
+          test "$(cat /tmp/v34-a/v34-artifact.digest)" = "$(cat /tmp/v34-b/v34-artifact.digest)"
+          cp /tmp/v34-b/v34-frontend.tar.gz v34-frontend-dist.tar.gz
+          cp /tmp/v34-b/v34-files.sha256 v34-files.sha256
+      - name: Prepare artifact root
+        run: |
+          mkdir -p v34-artifact-root/frontend v34-artifact-root/backend
+          tar -xzf v34-frontend-dist.tar.gz -C v34-artifact-root/frontend
+          cp -R backend/app v34-artifact-root/backend/app
+          cp backend/requirements.txt backend/requirements.in backend/requirements.lock.txt v34-artifact-root/backend/
+          cp frontend/package.json frontend/package-lock.json v34-artifact-root/frontend/
+          cp Dockerfile v34-artifact-root/Dockerfile
+
+      - name: Generate Syft artifact SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: v34-artifact-root
+          format: cyclonedx-json
+          output-file: v34-artifact-sbom.cdx.json
+          upload-artifact: false
+
+      - name: Trivy artifact report
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: v34-artifact-root
+          format: json
+          output: v34-trivy.json
+          exit-code: '0'
+          ignore-unfixed: true
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+
+      - name: Trivy critical gate
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: v34-artifact-root
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL
+
+      - name: Compute canonical artifact digest
+        id: digest
+        run: |
+          SHA=$(sha256sum v34-frontend-dist.tar.gz | awk '{print $1}')
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "${SHA}  v34-frontend-dist.tar.gz" > v34-artifact.sha256
+
+      - name: GitHub OIDC artifact provenance
+        id: attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: v34-frontend-dist.tar.gz
+
+      - name: Write V34 evidence summary
+        env:
+          ARTIFACT_SHA: ${{ steps.digest.outputs.sha256 }}
+        run: |
+          LOCK_SHA=$(sha256sum frontend/package-lock.json | awk '{print $1}')
+          PY_LOCK_SHA=$(sha256sum backend/requirements.lock.txt | awk '{print $1}')
+          cat > v34-hermetic-evidence.json <<EOF
+          {
+            "schema":"maghrabi-v34-hermetic/v1",
+            "repository":"${GITHUB_REPOSITORY}",
+            "gitSha":"${GITHUB_SHA}",
+            "artifactSha256":"${ARTIFACT_SHA}",
+            "frontendLockSha256":"${LOCK_SHA}",
+            "pythonLockSha256":"${PY_LOCK_SHA}",
+            "crossRunnerReproducible":true,
+            "builders":["ubuntu-22.04","ubuntu-24.04"],
+            "syftArtifactSbom":true,
+            "trivyScan":true,
+            "trivyBlockingThreshold":"CRITICAL",
+            "githubOidcProvenance":true
+          }
+          EOF
+
+      - name: Upload V34 hermetic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: v34-hermetic-${{ github.sha }}-${{ steps.digest.outputs.sha256 }}
+          path: |
+            v34-hermetic-evidence.json
+            v34-artifact.sha256
+            v34-files.sha256
+            v34-frontend-dist.tar.gz
+            v34-artifact-sbom.cdx.json
+            v34-trivy.json
+            frontend/package-lock.json
+            backend/requirements.lock.txt
+          if-no-files-found: error
+          retention-days: 30
