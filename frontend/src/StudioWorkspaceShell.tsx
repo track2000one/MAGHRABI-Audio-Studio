@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { ChevronRight, Clapperboard, Film } from 'lucide-react'
 import StudioCommandPalette from './StudioCommandPalette'
+import StudioProjectStatus from './StudioProjectStatus'
 
 const labels: Record<string, { title: string; subtitle: string }> = {
   color: { title: 'COLOR', subtitle: 'Finishing · Grading · QC' },
@@ -41,6 +42,7 @@ export default function StudioWorkspaceShell({ active, children }: { active: str
         </div>
       </nav>
 
+      <StudioProjectStatus />
       <StudioCommandPalette />
     </div>
   )
