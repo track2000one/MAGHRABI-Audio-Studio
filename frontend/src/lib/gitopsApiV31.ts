@@ -92,7 +92,7 @@ async function request<T>(url: string, method: 'POST' | 'DELETE', body?: unknown
   const headers = new Headers({ 'Content-Type': 'application/json' })
   const csrf = csrfToken()
   if (csrf) headers.set('X-MAGHRABI-CSRF', csrf)
-  return parse(await fetch(url, {
+  return parse<T>(await fetch(url, {
     method,
     headers,
     credentials: 'include',
@@ -100,36 +100,36 @@ async function request<T>(url: string, method: 'POST' | 'DELETE', body?: unknown
   }))
 }
 
-export function getOverviewV31(): Promise<V31Overview> {
-  return fetch('/api/video/v31/admin/overview', { credentials: 'include' }).then(parse)
+export async function getOverviewV31(): Promise<V31Overview> {
+  return parse<V31Overview>(await fetch('/api/video/v31/admin/overview', { credentials: 'include' }))
 }
 
 export function createReleaseV31(payload: Record<string, any>): Promise<V31Release> {
-  return request('/api/video/v31/admin/releases', 'POST', payload)
+  return request<V31Release>('/api/video/v31/admin/releases', 'POST', payload)
 }
 
 export function prepareReleaseV31(id: string): Promise<V31Release> {
-  return request(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/prepare`, 'POST')
+  return request<V31Release>(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/prepare`, 'POST')
 }
 
 export function approveReleaseV31(id: string, environment: string, decision: 'approve' | 'reject', reason = ''): Promise<Record<string, any>> {
-  return request(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/approve`, 'POST', { environment, decision, reason })
+  return request<Record<string, any>>(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/approve`, 'POST', { environment, decision, reason })
 }
 
 export function promoteReleaseV31(id: string, overrideFreeze = false, overrideReason = ''): Promise<V31Release> {
-  return request(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/promote`, 'POST', { overrideFreeze, overrideReason })
+  return request<V31Release>(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/promote`, 'POST', { overrideFreeze, overrideReason })
 }
 
 export function rollbackReleaseV31(id: string, targetSha?: string, environment?: string): Promise<V31Release> {
-  return request(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/rollback`, 'POST', { targetSha, environment })
+  return request<V31Release>(`/api/video/v31/admin/releases/${encodeURIComponent(id)}/rollback`, 'POST', { targetSha, environment })
 }
 
 export function createFreezeV31(payload: { name: string; startAt: string; endAt: string; reason: string }): Promise<V31Freeze> {
-  return request('/api/video/v31/admin/freezes', 'POST', payload)
+  return request<V31Freeze>('/api/video/v31/admin/freezes', 'POST', payload)
 }
 
 export function deleteFreezeV31(id: string): Promise<{ ok: boolean; id: string }> {
-  return request(`/api/video/v31/admin/freezes/${encodeURIComponent(id)}`, 'DELETE')
+  return request<{ ok: boolean; id: string }>(`/api/video/v31/admin/freezes/${encodeURIComponent(id)}`, 'DELETE')
 }
 
 export function evidenceUrlV31(id: string) {
