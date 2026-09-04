@@ -10,9 +10,9 @@ MAGHRABI Studio is packaged as a single Railway service:
 - Demucs runs on the pinned CPU Torch/TorchAudio stack.
 - `/data` is the persistent runtime root.
 - SQLite is the local fallback for control-plane state; PostgreSQL can be supplied with `DATABASE_URL`.
-- GitHub Actions produces the release evidence and immutable OCI image used by the final gate.
+- GitHub Actions produces release evidence plus an immutable Docker image archive that is runtime-tested by SHA-256 before V40 can pass.
 
-The deployment identity is **Git candidate SHA + OCI SHA-256 digest**. A mutable image tag is never sufficient evidence for Production.
+The evidence identity is **Git candidate SHA + tested container-archive SHA-256**. Railway then builds the same source-controlled Dockerfile; Railway health is an additional operational check, not inferred from GitHub.
 
 ## 2. Required Railway configuration
 
@@ -48,23 +48,24 @@ Do not store real credentials in `.env.example` or GitHub source files.
 2. Wait for `Validate MAGHRABI Studio` to pass on the exact final SHA.
 3. Wait for the V33/V34 evidence workflows to pass on that SHA.
 4. Wait for `V40 Production Readiness` to finish successfully on that same SHA.
-5. Confirm the V40 workflow produced an immutable image of the form:
-   `ghcr.io/track2000one/maghrabi-audio-studio@sha256:<digest>`.
-6. In the application, create/select the V31 Release with `candidateSha` equal to that SHA.
-7. Open `#video` and confirm Creator V40 reports every stage as `SUCCESS` and Production as `READY`.
-8. Promote through the existing release flow. The V40 middleware blocks Production if the final pipeline does not match the release candidate.
+5. Confirm V35 produced `v35-container-image.tar`, a SHA-256 digest, CycloneDX SBOM, Trivy evidence and GitHub OIDC provenance.
+6. Confirm V36 loaded the same archive after verifying that exact SHA-256 and passed runtime/HTTP smoke tests.
+7. In the application, create/select the V31 Release with `candidateSha` equal to that SHA.
+8. Open `#video` and confirm Creator V40 reports every stage as `SUCCESS` and Production as `READY`.
+9. Promote through the existing release flow. The V40 middleware blocks Production if the final pipeline does not match the release candidate.
+10. Confirm Railway reaches a healthy deployment and the public `/api/health` endpoint succeeds.
 
 Never reuse evidence from a different SHA.
 
 ## 4. V35–V40 gates
 
-### V35 — OCI Trust & Signed Image
+### V35 — Container Artifact Trust
 
-The final Docker image is built from the source-controlled Dockerfile, pushed to GHCR by digest, scanned, assigned a CycloneDX SBOM, signed with keyless Sigstore/Cosign identity, verified, and given GitHub OIDC build provenance.
+The final Docker image is built from the source-controlled Dockerfile, exported as an immutable Docker archive, identified by SHA-256, scanned by Trivy, assigned a CycloneDX SBOM, and given GitHub OIDC provenance. External registry signing is not claimed by the current pipeline.
 
 ### V36 — Runtime & E2E Verification
 
-The exact OCI digest is pulled and executed. The pipeline verifies the media/ML runtime, FastAPI health, authentication configuration, frontend availability, and HTTP security response headers.
+The exact V35 archive is downloaded, SHA-256 verified, loaded with Docker, and executed. The pipeline validates the media/ML runtime, FastAPI health, authentication configuration, frontend availability, V40 liveness, security response headers, and that public FastAPI docs remain disabled by default.
 
 ### V37 — Backup/Restore & Disaster Recovery
 
@@ -72,7 +73,7 @@ The backup engine creates a manifest containing SHA-256 for every included contr
 
 ### V38 — Security & Privacy Hardening
 
-The repository/image are scanned for high-impact security findings. Production HTTP headers are installed, public API docs are disabled by default, and sensitive admin/auth surfaces are `no-store`.
+Repository secret scanning and IaC critical checks run in CI. Production HTTP headers are installed, public API docs are disabled by default, and sensitive admin/auth surfaces are `no-store`.
 
 ### V39 — Performance & Regression Quality
 
@@ -80,7 +81,7 @@ Historical studio generations are route-level lazy chunks rather than one monoli
 
 ### V40 — Final Production Readiness
 
-V40 is non-waivable. It requires every prior final-stage job to succeed for the same candidate SHA and requires an immutable image digest plus final evidence artifact.
+V40 is non-waivable. It requires every final-stage job to succeed for the same candidate SHA, a valid immutable container-archive SHA-256, GitHub provenance when available through the Attestations API, and a final evidence artifact.
 
 ## 5. Health checks
 
@@ -121,12 +122,7 @@ For PostgreSQL deployments, database backups must also be performed using the ma
 
 ## 7. Rollback
 
-Rollback should identify both:
-
-- the previous known-good Git SHA; and
-- the previous known-good OCI digest.
-
-Do not rollback by moving a mutable `latest` tag alone. Re-run readiness evidence if a rollback candidate is re-promoted through the application release system.
+Rollback should identify the previous known-good Git SHA and its matching successful V40 evidence. Because Railway builds from source, rollback Railway to the deployment built from that known-good source revision and then verify `/api/health` again.
 
 ## 8. Incident response
 
@@ -135,8 +131,8 @@ For an availability incident:
 1. Check Railway deployment health and `/api/health`.
 2. Check persistent volume availability and free space.
 3. Check active media worker/job state.
-4. Check the exact deployed SHA/image digest against the last successful V40 evidence.
-5. If the new image is implicated, rollback to the previous immutable digest.
+4. Compare the deployed source revision with the last successful V40 candidate SHA.
+5. If the new revision is implicated, rollback Railway to the previous known-good revision.
 6. Preserve logs/evidence before destructive cleanup.
 
 For a suspected credential leak, rotate the credential immediately. Deleting a Git commit does not make a leaked secret trustworthy again.
@@ -146,4 +142,5 @@ For a suspected credential leak, rotate the credential immediately. Deleting a G
 - Demucs is CPU-bound and intentionally configured with a low worker count on Railway.
 - Very large or long media jobs can be slow and memory intensive.
 - Python 3.10 and Torch 2.0.1/TorchAudio 2.0.2 are compatibility pins and require a planned migration rather than an automatic major upgrade.
-- V40 can prove GitHub build/runtime evidence, but Railway deployment state itself must still be confirmed from Railway because this repository has no direct Railway control-plane connector.
+- V40 proves GitHub build/runtime evidence for an immutable image archive; it does not claim an external registry signature.
+- Railway deployment state itself must still be confirmed from Railway/public health because this repository has no direct Railway control-plane connector.
