@@ -126,7 +126,7 @@ jobs:
       - name: Validate runtime ML and media stack
         run: |
           IMAGE="maghrabi-studio:v40-${GITHUB_SHA}"
-          docker run --rm --entrypoint python "$IMAGE" -c "import torch,torchaudio,demucs; assert torch.__version__=='2.0.1+cpu'; assert torchaudio.__version__=='2.0.2+cpu'; print('ml-stack-ok')"
+          docker run --rm --entrypoint python "$IMAGE" -c "import torch,torchaudio,demucs; assert torch.__version__=='2.6.0+cpu'; assert torchaudio.__version__=='2.6.0+cpu'; print('ml-stack-ok', torch.__version__, torchaudio.__version__)"
           docker run --rm --entrypoint ffmpeg "$IMAGE" -version | head -1
           docker run --rm --entrypoint ffprobe "$IMAGE" -version | head -1
 
@@ -176,7 +176,7 @@ jobs:
           DIGEST_HEX: ${{ needs.v35_oci.outputs.digest_hex }}
         run: |
           cat > v36-runtime-evidence.json <<EOF
-          {"schema":"maghrabi-v36-runtime/v1","gitSha":"${GITHUB_SHA}","containerArtifactSha256":"${DIGEST_HEX}","mlStack":true,"ffmpeg":true,"ffprobe":true,"health":true,"authConfigured":true,"login":true,"frontend":true,"securityHeaders":true,"publicDocsDisabled":true}
+          {"schema":"maghrabi-v36-runtime/v1","gitSha":"${GITHUB_SHA}","containerArtifactSha256":"${DIGEST_HEX}","torch":"2.6.0+cpu","torchaudio":"2.6.0+cpu","demucsImport":true,"mlStack":true,"ffmpeg":true,"ffprobe":true,"health":true,"authConfigured":true,"login":true,"frontend":true,"securityHeaders":true,"publicDocsDisabled":true}
           EOF
 
       - name: Upload V36 evidence
