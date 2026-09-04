@@ -112,6 +112,12 @@ def _patch_runtime() -> None:
         staged["policy"] = policy
         staged["licenses"] = reclassify_licenses(scan.get("licenses") or {}, policy)
 
+        # Config drift is evaluated at gate time, not only at scan time.
+        current_fingerprints = base._fingerprints()
+        drift = dict(scan.get("drift") or {})
+        drift[environment] = base._drift_for(environment, current_fingerprints)
+        staged["drift"] = drift
+
         artifact = dict(scan.get("artifact") or {})
         latest_by_env = artifact.get("latestByEnvironment") if isinstance(artifact.get("latestByEnvironment"), dict) else {}
         if not latest_by_env:
@@ -136,6 +142,7 @@ def _patch_runtime() -> None:
 
         gate = original_gate(staged, release, environment)
         gate["policyCurrent"] = True
+        gate["configDriftEvaluatedAtGateTime"] = True
         if reported_ruleset_count and not bool((rules.get("protection") or {}).get("protected")):
             gate.setdefault("warnings", []).append(
                 f"{reported_ruleset_count} GitHub ruleset(s) were listed, but applicability to this candidate branch was not independently proven."
