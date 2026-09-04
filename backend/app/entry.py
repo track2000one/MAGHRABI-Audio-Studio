@@ -27,7 +27,7 @@ from .video_tools_v22 import router as video_tools_v22_router
 from .video_tools_v23_runtime import router as video_tools_v23_router
 from .video_tools_v24_runtime import router as video_tools_v24_router
 from .video_tools_v25 import router as video_tools_v25_router, install_observability as install_v25_observability
-from .video_tools_v26 import router as video_tools_v26_router, install_reliability as install_v26_reliability
+from .video_tools_v26_runtime import router as video_tools_v26_router, install_reliability as install_v26_reliability
 
 # main.py mounts the SPA at "/". Keep that catch-all route last so API
 # endpoints remain reachable before StaticFiles handles the request.
