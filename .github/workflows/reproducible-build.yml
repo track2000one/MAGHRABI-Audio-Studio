@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   reproducible-frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       TZ: UTC
     steps:
@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -81,7 +81,7 @@ jobs:
             "repository":"${GITHUB_REPOSITORY}",
             "gitSha":"${GITHUB_SHA}",
             "sourceDateEpoch":"${SOURCE_DATE_EPOCH}",
-            "node":"20",
+            "node":"22",
             "packageLockSha256":"${LOCK_SHA}",
             "artifactSha256":"${ARTIFACT_SHA}",
             "buildA":"$(cat /tmp/v33-build-a.digest)",
