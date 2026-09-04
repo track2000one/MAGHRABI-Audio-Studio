@@ -1,0 +1,188 @@
+.maghrabi-editing-core {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  z-index: 98;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(148, 163, 184, .24);
+  border-radius: 16px;
+  padding: 6px;
+  background: rgba(8, 17, 31, .94);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, .38), inset 0 1px 0 rgba(255, 255, 255, .025);
+  backdrop-filter: blur(16px);
+}
+
+.maghrabi-core-button,
+.maghrabi-save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  border: 1px solid rgba(148, 163, 184, .18);
+  border-radius: 10px;
+  padding: 0 9px;
+  background: rgba(15, 23, 36, .88);
+  color: #c7d3e3;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .07em;
+  transition: border-color 100ms ease, background 100ms ease, color 100ms ease, transform 100ms ease;
+}
+
+.maghrabi-core-button:not(:disabled):hover,
+.maghrabi-save-state:not(:disabled):hover {
+  border-color: rgba(103, 232, 249, .42);
+  background: rgba(34, 211, 238, .08);
+  color: #cffafe;
+  transform: translateY(-1px);
+}
+
+.maghrabi-core-button:disabled,
+.maghrabi-save-state:disabled {
+  opacity: .32;
+  cursor: not-allowed;
+}
+
+.maghrabi-core-button.is-ripple {
+  border-color: rgba(52, 211, 153, .24);
+  color: #a7f3d0;
+}
+
+.maghrabi-history-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #7f91a8;
+  font-size: 8px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.maghrabi-core-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(148, 163, 184, .16);
+}
+
+.maghrabi-save-state {
+  color: #a8b6c9;
+}
+
+.maghrabi-save-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #64748b;
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, .1);
+}
+
+.maghrabi-save-dot.state-saved,
+.maghrabi-save-dot.state-ready {
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, .48);
+}
+
+.maghrabi-save-dot.state-dirty {
+  background: #fbbf24;
+  box-shadow: 0 0 8px rgba(251, 191, 36, .45);
+}
+
+.maghrabi-save-dot.state-saving {
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34, 211, 238, .48);
+  animation: maghrabi-pulse 800ms ease-in-out infinite alternate;
+}
+
+.maghrabi-save-dot.state-error {
+  background: #fb7185;
+  box-shadow: 0 0 8px rgba(251, 113, 133, .55);
+}
+
+.maghrabi-marker-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 59;
+  pointer-events: none;
+}
+
+.maghrabi-marker {
+  --marker-color: #22d3ee;
+  position: absolute;
+  top: 2px;
+  width: 14px;
+  height: 18px;
+  margin-left: -7px;
+  border: 0;
+  border-radius: 3px 3px 8px 8px;
+  padding: 0;
+  background: var(--marker-color);
+  color: transparent;
+  pointer-events: auto;
+  cursor: grab;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .35));
+}
+
+.maghrabi-marker::before {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 6px;
+  width: 2px;
+  height: calc(100vh - 330px);
+  min-height: 260px;
+  max-height: 520px;
+  background: color-mix(in srgb, var(--marker-color) 38%, transparent);
+  pointer-events: none;
+}
+
+.maghrabi-marker::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 1px;
+  left: 17px;
+  max-width: 145px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--marker-color) 34%, transparent);
+  border-radius: 6px;
+  padding: 2px 5px;
+  background: rgba(8, 17, 31, .9);
+  color: #e2e8f0;
+  font-size: 7px;
+  font-weight: 800;
+  opacity: 0;
+  transform: translateY(-1px);
+  transition: opacity 90ms ease;
+  pointer-events: none;
+}
+
+.maghrabi-marker:hover::after {
+  opacity: 1;
+}
+
+.maghrabi-marker:active {
+  cursor: grabbing;
+  transform: scale(1.08);
+}
+
+@keyframes maghrabi-pulse {
+  from { opacity: .4; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 900px) {
+  .maghrabi-editing-core {
+    max-width: calc(100vw - 24px);
+    overflow-x: auto;
+    justify-content: flex-start;
+  }
+  .maghrabi-core-button span,
+  .maghrabi-save-state span {
+    display: none;
+  }
+}
