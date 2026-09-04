@@ -2,7 +2,7 @@
 
 ## Supported production line
 
-The supported production line is the current `main` branch and the immutable OCI image produced by the V40 Production Readiness workflow for the exact candidate commit. Historical Creator routes are retained for rollback and evidence inspection, but security fixes target the current production line.
+The supported production line is the current `main` branch plus the immutable Docker image archive produced and runtime-tested by the V40 Production Readiness workflow for the exact candidate commit. Historical Creator routes are retained for rollback and evidence inspection, but security fixes target the current production line.
 
 ## Reporting a vulnerability
 
@@ -34,10 +34,12 @@ The production line implements:
 - SHA-256 hashed transitive Python dependency lock.
 - Reproducible frontend build evidence.
 - Syft CycloneDX SBOM generation.
-- Trivy artifact and OCI vulnerability gates.
-- GitHub OIDC provenance.
-- V40 immutable OCI digest policy and non-waivable Production gate.
+- Trivy source/artifact/container vulnerability gates.
+- GitHub OIDC provenance for release artifacts.
+- V40 immutable container-archive SHA-256 policy and non-waivable Production gate.
 - Verified control-plane backup/restore with SHA-256 integrity checking.
+
+The current automated pipeline does **not** claim an external registry signature. A registry signing system may be added later only when it can be configured and independently verified. Railway deployment continues to build from the reviewed source Dockerfile.
 
 ## Dependency constraints
 
@@ -57,4 +59,4 @@ The V37 backup engine targets control-plane state and intentionally excludes tra
 
 ## Release policy
 
-A Production promotion must be bound to one candidate Git SHA and one immutable OCI image digest. Mutable tags such as `main` or `latest` are navigation conveniences only and must not be treated as release identity.
+A Production promotion must be bound to one candidate Git SHA and the SHA-256 identity of the exact tested container archive produced for that candidate. GitHub OIDC provenance is generated for that archive. Railway deployment health must then be verified independently after Railway builds the same source-controlled Dockerfile.
