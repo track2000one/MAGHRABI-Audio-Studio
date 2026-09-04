@@ -7,6 +7,7 @@ import StudioThemeSelector, { getInitialStudioTheme, STUDIO_THEME_STORAGE_KEY, t
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
 import VideoStudioCreator from './VideoStudioCreator'
 import './studioProContrast.css'
+import './studioThemes.css'
 
 export default function StudioProApp() {
   const [theme, setTheme] = useState<StudioThemeId>(() => getInitialStudioTheme())
