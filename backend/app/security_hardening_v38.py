@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import os
 
-from fastapi import Request
-
 CSP = "; ".join(
     [
         "default-src 'self'",
@@ -37,7 +35,7 @@ def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def is_https_request(request: Request) -> bool:
+def is_https_request(request) -> bool:
     forwarded = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip().lower()
     return request.url.scheme == "https" or forwarded == "https"
 
@@ -67,7 +65,7 @@ def install_security_hardening(app) -> None:
     _disable_public_docs(app)
 
     @app.middleware("http")
-    async def security_headers(request: Request, call_next):
+    async def security_headers(request, call_next):
         response = await call_next(request)
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
