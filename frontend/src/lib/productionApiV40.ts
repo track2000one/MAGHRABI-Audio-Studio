@@ -33,9 +33,9 @@ export type V40Pipeline = {
     archiveDigest?: string | null
     expired?: boolean | null
   } | null
-  imageDigestSha256?: string | null
-  imageRef?: string | null
-  immutableImage?: string | null
+  containerArtifactSha256?: string | null
+  containerArtifactName?: string | null
+  immutableArtifact?: string | null
   reason?: string | null
   error?: string | null
 }
@@ -61,7 +61,8 @@ export type V40Readiness = {
   }
   policy: {
     waiversAllowed: boolean
-    immutableImageRequired: boolean
+    immutableContainerArtifactRequired: boolean
+    registrySignatureClaimed: boolean
     allStagesRequired: string[]
     productionPromotionBlockedOnFailure: boolean
   }
