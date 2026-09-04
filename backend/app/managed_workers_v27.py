@@ -148,7 +148,9 @@ def acquire(
 ) -> LeaseHandle:
     job_key = generation_key(prefix, identity_key, generation)
     ttl = max(20, min(600, int(rel.get_settings().get("lease.ttlSeconds", 60) or 60)))
-    worker_id = f"{v26.NODE_ID}:{prefix}"
+    # In-process workers belong to the API replica itself so V26 graceful
+    # shutdown can drain every active lease owned by this node.
+    worker_id = v26.NODE_ID
     checksum = payload_checksum(state, paths)
     payload = {
         "jobKey": job_key,
@@ -304,5 +306,5 @@ def run_guarded(
         lease = fail(handle, error, state)
         return {"executed": True, "success": False, "state": state, "lease": lease}
     except Exception as exc:
-        lease = fail(handle, str(exc), {})
+        fail(handle, str(exc), {})
         raise
