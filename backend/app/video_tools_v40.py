@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/video/v40", tags=["video-studio-v40"])
 WORKFLOW_PATH = "v40-production-readiness.yml"
 FINAL_ARTIFACT_PREFIX = "v40-final-"
 REQUIRED_JOBS = {
-    "v35-oci": "V35 OCI Trust & Signed Image",
+    "v35-oci": "V35 Container Artifact Trust",
     "v36-runtime": "V36 Runtime & E2E Verification",
     "v37-dr": "V37 Backup/Restore & Disaster Recovery",
     "v38-security": "V38 Security & Privacy Hardening",
@@ -49,7 +49,7 @@ def _step_summary(job: dict) -> list[dict]:
 
 def _attestation_presence(release: dict, digest_hex: str | None) -> dict:
     if not digest_hex or not re.fullmatch(r"[0-9a-f]{64}", digest_hex):
-        return {"available": False, "present": False, "reason": "image_digest_missing"}
+        return {"available": False, "present": False, "reason": "container_artifact_digest_missing"}
     try:
         data = v31._github_get(
             release["repository"],
@@ -80,8 +80,8 @@ def _pipeline(release: dict) -> dict:
         "runUrl": None,
         "jobs": {},
         "finalArtifact": None,
-        "imageDigestSha256": None,
-        "imageRef": f"ghcr.io/{release['repository'].split('/', 1)[0].lower()}/maghrabi-audio-studio",
+        "containerArtifactSha256": None,
+        "containerArtifactName": "v35-container-image.tar",
     }
     try:
         data = v31._github_get(
@@ -89,11 +89,7 @@ def _pipeline(release: dict) -> dict:
             f"actions/runs?head_sha={urllib.parse.quote(release['candidateSha'], safe='')}&per_page=100",
         )
         runs = data.get("workflow_runs", []) if isinstance(data, dict) else []
-        matches = [
-            run
-            for run in runs
-            if str(run.get("path") or "").endswith(WORKFLOW_PATH)
-        ]
+        matches = [run for run in runs if str(run.get("path") or "").endswith(WORKFLOW_PATH)]
         if not matches:
             return {**base, "reason": "final_pipeline_not_run_for_candidate"}
         run = sorted(matches, key=lambda item: str(item.get("created_at") or ""), reverse=True)[0]
@@ -117,18 +113,12 @@ def _pipeline(release: dict) -> dict:
         artifacts_data = v31._github_get(release["repository"], f"actions/runs/{run_id}/artifacts?per_page=100")
         artifacts = artifacts_data.get("artifacts", []) if isinstance(artifacts_data, dict) else []
         prefix = f"{FINAL_ARTIFACT_PREFIX}{release['candidateSha']}-"
-        final_artifact = next(
-            (item for item in artifacts if str(item.get("name") or "").startswith(prefix)),
-            None,
-        )
+        final_artifact = next((item for item in artifacts if str(item.get("name") or "").startswith(prefix)), None)
         digest_hex = None
         if final_artifact:
             match = re.search(r"-([0-9a-f]{64})$", str(final_artifact.get("name") or ""))
             digest_hex = match.group(1) if match else None
-        all_jobs = all(
-            (job_map.get(name) or {}).get("conclusion") == "success"
-            for name in REQUIRED_JOBS
-        )
+        all_jobs = all((job_map.get(name) or {}).get("conclusion") == "success" for name in REQUIRED_JOBS)
         success = (
             run.get("status") == "completed"
             and run.get("conclusion") == "success"
@@ -156,15 +146,11 @@ def _pipeline(release: dict) -> dict:
             }
             if final_artifact
             else None,
-            "imageDigestSha256": digest_hex,
-            "immutableImage": f"{base['imageRef']}@sha256:{digest_hex}" if digest_hex else None,
+            "containerArtifactSha256": digest_hex,
+            "immutableArtifact": f"docker-archive://v35-container-image.tar@sha256:{digest_hex}" if digest_hex else None,
         }
     except Exception as exc:
-        return {
-            **base,
-            "reason": "github_pipeline_evidence_unavailable",
-            "error": str(exc)[:700],
-        }
+        return {**base, "reason": "github_pipeline_evidence_unavailable", "error": str(exc)[:700]}
 
 
 def final_readiness(release: dict) -> dict:
@@ -177,16 +163,17 @@ def final_readiness(release: dict) -> dict:
         job = (pipeline.get("jobs") or {}).get(job_name) or {}
         if job.get("conclusion") != "success":
             blockers.append({"code": f"{job_name}_failed", "message": f"{label} is not successful for this Candidate SHA."})
-    digest = str(pipeline.get("imageDigestSha256") or "")
+    digest = str(pipeline.get("containerArtifactSha256") or "")
     if not re.fullmatch(r"[0-9a-f]{64}", digest):
-        blockers.append({"code": "immutable_image_missing", "message": "Immutable OCI image digest evidence is missing."})
+        blockers.append({"code": "immutable_container_artifact_missing", "message": "Immutable container artifact SHA-256 evidence is missing."})
     if not pipeline.get("finalArtifact"):
         blockers.append({"code": "final_evidence_missing", "message": "V40 final evidence artifact is missing."})
     attestation = _attestation_presence(release, digest if digest else None)
     if attestation.get("available") and not attestation.get("present"):
-        blockers.append({"code": "oci_attestation_missing", "message": "GitHub Attestations API did not confirm provenance for the OCI image digest."})
+        blockers.append({"code": "container_attestation_missing", "message": "GitHub Attestations API did not confirm provenance for the immutable container artifact SHA-256."})
     elif not attestation.get("available"):
-        warnings.append("GitHub Attestations API could not be independently queried; the pipeline still requires successful Cosign verification and GitHub provenance steps.")
+        warnings.append("GitHub Attestations API could not be independently queried; the V35 pipeline still requires a successful GitHub OIDC provenance step for the same container archive.")
+    warnings.append("Registry signing is intentionally not claimed. Railway builds from the source Dockerfile; the final GitHub evidence proves an immutable container archive and runtime verification, while Railway deployment health is verified separately.")
     ready = pipeline.get("success") is True and not blockers
     return {
         "ready": ready,
@@ -202,7 +189,8 @@ def final_readiness(release: dict) -> dict:
         "attestation": attestation,
         "policy": {
             "waiversAllowed": False,
-            "immutableImageRequired": True,
+            "immutableContainerArtifactRequired": True,
+            "registrySignatureClaimed": False,
             "allStagesRequired": list(REQUIRED_JOBS),
             "productionPromotionBlockedOnFailure": True,
         },
@@ -218,13 +206,7 @@ async def health_v40() -> dict:
 async def overview_v40(admin: dict = Depends(v24.require_admin)) -> dict:
     release = _active_release()
     if not release:
-        return {
-            "version": "40",
-            "generatedAt": _now(),
-            "activeRelease": None,
-            "readiness": None,
-            "stages": REQUIRED_JOBS,
-        }
+        return {"version": "40", "generatedAt": _now(), "activeRelease": None, "readiness": None, "stages": REQUIRED_JOBS}
     return {
         "version": "40",
         "generatedAt": _now(),
