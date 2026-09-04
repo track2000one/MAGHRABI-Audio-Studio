@@ -8,7 +8,7 @@ on:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -27,6 +27,16 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Enforce V39 frontend performance budgets
+        working-directory: frontend
+        run: |
+          LARGEST_JS=$(find dist/assets -maxdepth 1 -type f -name '*.js' -printf '%s\n' | sort -nr | head -1)
+          TOTAL_DIST=$(du -sb dist | cut -f1)
+          echo "Largest JS chunk: ${LARGEST_JS} bytes"
+          echo "Total dist: ${TOTAL_DIST} bytes"
+          test "${LARGEST_JS}" -le 900000
+          test "${TOTAL_DIST}" -le 8000000
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -42,10 +52,13 @@ jobs:
           python -m pip install --dry-run --ignore-installed --require-hashes \
             --index-url https://pypi.org/simple \
             --extra-index-url https://download.pytorch.org/whl/cpu \
-            -r backend/requirements.lock.txt >/tmp/v34-pip-dry-run.txt
+            -r backend/requirements.lock.txt >/tmp/pip-hash-lock-dry-run.txt
 
       - name: Validate Python syntax
-        run: python -m py_compile backend/app/*.py
+        run: python -m py_compile backend/app/*.py backend/tests/*.py
+
+      - name: Run V37-V38 unit tests
+        run: python -m unittest discover -s backend/tests -p 'test_*.py' -v
 
       - name: Validation complete
-        run: echo "Creator V34 validation completed from exact npm and Python SHA-256 locks"
+        run: echo "MAGHRABI final validation passed exact locks, tests, syntax and V39 bundle budgets"
