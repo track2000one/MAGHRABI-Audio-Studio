@@ -167,10 +167,11 @@ export default function StudioPrecisionEditPro() {
         const speed = Math.max(.25, clip.speed || 1)
         if (edge === 'in') {
           const requested = clip.start + deltaTimeline * speed
-          const nextStart = clamp(requested, 0, clip.end - .05)
+          const earliestSource = Math.max(0, clip.start - clip.startAt * speed)
+          const nextStart = clamp(requested, earliestSource, clip.end - .05)
           const appliedTimeline = (nextStart - clip.start) / speed
           clip.start = nextStart
-          clip.startAt = Math.max(0, clip.startAt + appliedTimeline)
+          clip.startAt += appliedTimeline
         } else {
           clip.end = clamp(clip.end + deltaTimeline * speed, clip.start + .05, sourceDuration)
         }
@@ -180,10 +181,11 @@ export default function StudioPrecisionEditPro() {
       if (!track) return false
       const sourceDuration = snapshot.audioDurations?.[track.fileIndex] || track.sourceEnd
       if (edge === 'in') {
-        const nextStart = clamp(track.sourceStart + deltaTimeline, 0, track.sourceEnd - .05)
+        const earliestSource = Math.max(0, track.sourceStart - track.startAt)
+        const nextStart = clamp(track.sourceStart + deltaTimeline, earliestSource, track.sourceEnd - .05)
         const applied = nextStart - track.sourceStart
         track.sourceStart = nextStart
-        track.startAt = Math.max(0, track.startAt + applied)
+        track.startAt += applied
       } else {
         track.sourceEnd = clamp(track.sourceEnd + deltaTimeline, track.sourceStart + .05, sourceDuration)
       }
@@ -253,16 +255,25 @@ export default function StudioPrecisionEditPro() {
   useEffect(() => {
     let cleanupHandles: (() => void) | null = null
     let frame = 0
+    let currentElement: HTMLButtonElement | null = null
 
     const enhance = () => {
       window.cancelAnimationFrame(frame)
       frame = window.requestAnimationFrame(() => {
-        cleanupHandles?.()
-        cleanupHandles = null
         const ref = selectedRef()
         setSelection(ref)
-        if (!ref) return
+        if (!ref) {
+          cleanupHandles?.()
+          cleanupHandles = null
+          currentElement = null
+          return
+        }
         const button = ref.element
+        if (button === currentElement && button.querySelectorAll('.maghrabi-trim-handle').length === 2) return
+
+        cleanupHandles?.()
+        cleanupHandles = null
+        currentElement = button
         button.querySelectorAll('.maghrabi-trim-handle').forEach((node) => node.remove())
 
         const listeners: Array<() => void> = []
@@ -316,11 +327,21 @@ export default function StudioPrecisionEditPro() {
         cleanupHandles = () => {
           listeners.forEach((remove) => remove())
           button.querySelectorAll('.maghrabi-trim-handle').forEach((node) => node.remove())
+          if (currentElement === button) currentElement = null
         }
       })
     }
 
-    const observer = new MutationObserver(enhance)
+    const observer = new MutationObserver((mutations) => {
+      const onlyOwnHandleChanges = mutations.every((mutation) => {
+        if (mutation.type === 'attributes') {
+          return mutation.target instanceof HTMLElement && mutation.target.classList.contains('maghrabi-trim-handle')
+        }
+        const nodes = [...Array.from(mutation.addedNodes), ...Array.from(mutation.removedNodes)]
+        return nodes.length > 0 && nodes.every((node) => node instanceof HTMLElement && node.classList.contains('maghrabi-trim-handle'))
+      })
+      if (!onlyOwnHandleChanges) enhance()
+    })
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] })
     enhance()
     return () => {
