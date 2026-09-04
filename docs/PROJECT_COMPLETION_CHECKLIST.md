@@ -19,24 +19,26 @@ A build is considered production-ready only when all items below are true for th
 - [ ] Trivy artifact CRITICAL gate passes.
 - [ ] GitHub OIDC provenance is generated.
 
-## V35 OCI release
+## V35 container artifact
 
 - [ ] Production Docker image builds from the final SHA.
-- [ ] Image is pushed to GHCR.
-- [ ] Deployment identity uses `image@sha256:<digest>`.
-- [ ] OCI SBOM is generated.
-- [ ] OCI vulnerability CRITICAL gate passes.
-- [ ] Keyless Cosign signature is created and successfully verified.
-- [ ] GitHub OCI provenance attestation succeeds.
+- [ ] The exact image is exported to `v35-container-image.tar`.
+- [ ] The archive has a valid SHA-256 identity.
+- [ ] Container-image CycloneDX SBOM is generated.
+- [ ] Container vulnerability CRITICAL gate passes.
+- [ ] GitHub OIDC provenance is created for the same immutable archive.
+- [ ] External registry signing is not represented as complete unless independently configured and verified.
 
 ## V36 runtime verification
 
-- [ ] The exact image digest can be pulled.
+- [ ] The exact V35 archive is downloaded and its SHA-256 matches V35 evidence.
+- [ ] The archive is loaded and the exact image executes.
 - [ ] `torch`, `torchaudio`, `demucs`, `ffmpeg`, and `ffprobe` are available in the final image.
 - [ ] `/api/health` returns healthy status.
 - [ ] `/api/auth/status` reports authentication configured in the smoke environment.
 - [ ] Login endpoint accepts valid smoke credentials.
 - [ ] Frontend root is served.
+- [ ] V40 liveness endpoint is reachable.
 - [ ] Security headers are present.
 - [ ] Public FastAPI docs are disabled by default.
 
@@ -51,8 +53,9 @@ A build is considered production-ready only when all items below are true for th
 
 ## V38 security and privacy
 
-- [ ] Repository security scan completes without blocking high-impact findings.
-- [ ] Production image security scan completes without blocking CRITICAL findings.
+- [ ] Repository secret scan completes without blocking findings.
+- [ ] IaC/config CRITICAL gate passes.
+- [ ] Container image CRITICAL gate passes in V35.
 - [ ] Secrets remain outside Git.
 - [ ] Admin/auth responses are no-store.
 - [ ] CSP / anti-framing / HSTS-on-HTTPS policy is active.
@@ -62,12 +65,14 @@ A build is considered production-ready only when all items below are true for th
 - [ ] Historical studio versions are lazy-loaded route chunks.
 - [ ] Largest JavaScript chunk stays within the CI budget.
 - [ ] Total frontend distribution stays within the CI budget.
+- [ ] More than five JavaScript chunks are emitted, proving route splitting is active.
 - [ ] Node 22 build succeeds.
+- [ ] Python regression tests pass.
 
 ## V40 final acceptance
 
 - [ ] `V40 Production Readiness` workflow succeeds.
-- [ ] Final evidence artifact exists for the exact candidate SHA.
+- [ ] Final evidence artifact exists for the exact candidate SHA and V35 container-archive SHA-256.
 - [ ] Creator V40 reports all six final stages successful.
 - [ ] Production gate reports `READY`.
 - [ ] Production promotion is rejected if V40 is not ready.
