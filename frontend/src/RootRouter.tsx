@@ -34,6 +34,7 @@ import VideoStudioV29 from './VideoStudioV29'
 import VideoStudioV30 from './VideoStudioV30'
 import VideoStudioV31 from './VideoStudioV31'
 import VideoStudioV32 from './VideoStudioV32'
+import VideoStudioV33 from './VideoStudioV33'
 import ReviewPortalV22 from './ReviewPortalV22'
 import EnterprisePortalV23 from './EnterprisePortalV23'
 import InviteAcceptV23 from './InviteAcceptV23'
@@ -122,7 +123,8 @@ export default function RootRouter() {
   if (route === '#video-v29') return <VideoStudioV29 />
   if (route === '#video-v30') return <VideoStudioV30 />
   if (route === '#video-v31') return <VideoStudioV31 />
-  if (route === '#video') return <VideoStudioV32 />
+  if (route === '#video-v32') return <VideoStudioV32 />
+  if (route === '#video') return <VideoStudioV33 />
 
   return (
     <>
@@ -134,7 +136,7 @@ export default function RootRouter() {
             className="inline-flex items-center gap-2 rounded-2xl border border-cyan-300/20 bg-[#0b1220]/95 px-4 py-3 text-xs font-black text-cyan-100 shadow-2xl shadow-black/40 backdrop-blur-xl transition hover:border-cyan-300/40 hover:bg-[#101a2b]"
           >
             <Video className="h-4 w-4 text-cyan-300" />
-            Video Studio Creator V32
+            Video Studio Creator V33
           </a>
           <a
             href="#tools"
