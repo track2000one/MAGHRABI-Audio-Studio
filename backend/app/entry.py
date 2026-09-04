@@ -31,6 +31,7 @@ from .video_tools_v26_runtime import router as video_tools_v26_router, install_r
 from .video_tools_v27 import router as video_tools_v27_router, install_managed_workers as install_v27_managed_workers
 from .video_tools_v28 import router as video_tools_v28_router, install_v28
 from .video_tools_v29_runtime import router as video_tools_v29_router, install_v29
+from .video_tools_v30 import router as video_tools_v30_router, install_v30
 
 # main.py mounts the SPA at "/". Keep that catch-all route last so API
 # endpoints remain reachable before StaticFiles handles the request.
@@ -68,12 +69,14 @@ app.include_router(video_tools_v26_router)
 app.include_router(video_tools_v27_router)
 app.include_router(video_tools_v28_router)
 app.include_router(video_tools_v29_router)
+app.include_router(video_tools_v30_router)
 app.router.routes.extend(static_mounts)
 
-# Install observability, reliability, managed workers, chaos validation, then
-# SLO/capacity sampling after all API routes have been registered.
+# Install observability, reliability, managed workers, chaos validation,
+# SLO/capacity sampling, then progressive-delivery control.
 install_v25_observability(app)
 install_v26_reliability(app)
 install_v27_managed_workers(app)
 install_v28(app)
 install_v29(app)
+install_v30(app)
