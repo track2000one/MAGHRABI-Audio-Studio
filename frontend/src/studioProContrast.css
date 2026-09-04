@@ -1,17 +1,42 @@
 .maghrabi-studio-pro {
-  --studio-bg: #0a101a;
-  --studio-panel: #111827;
-  --studio-panel-2: #0f1724;
-  --studio-border: rgba(148, 163, 184, 0.28);
-  --studio-border-soft: rgba(148, 163, 184, 0.18);
-  --studio-text-muted: #9aa9bd;
-  --studio-text-dim: #7f8fa5;
+  --studio-bg: #070b16;
+  --studio-bg-2: #0b1224;
+  --studio-panel: #111b31;
+  --studio-panel-2: #16223b;
+  --studio-panel-3: #1b2947;
+  --studio-border: rgba(104, 129, 173, 0.42);
+  --studio-border-soft: rgba(89, 110, 151, 0.28);
+  --studio-text: #f8fafc;
+  --studio-text-muted: #b7c5d8;
+  --studio-text-dim: #8ea0b8;
+  --studio-cyan: #22d3ee;
+  --studio-indigo: #6366f1;
+  --studio-violet: #8b5cf6;
+  --studio-emerald: #34d399;
+  --studio-warning: #f59e0b;
+  --studio-danger: #ff4d6d;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 8% -8%, rgba(34, 211, 238, 0.13), transparent 28%),
+    radial-gradient(circle at 92% 0%, rgba(99, 102, 241, 0.14), transparent 30%),
+    linear-gradient(180deg, #0a1020 0%, var(--studio-bg) 54%, #050811 100%);
+  color: var(--studio-text);
 }
 
 .maghrabi-studio-pro main {
-  background: var(--studio-bg) !important;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(34, 211, 238, 0.09), transparent 28%),
+    radial-gradient(circle at 90% 8%, rgba(99, 102, 241, 0.10), transparent 30%),
+    linear-gradient(180deg, rgba(9, 15, 30, 0.98), rgba(5, 9, 20, 1)) !important;
+  color: var(--studio-text) !important;
 }
 
+.maghrabi-studio-pro header {
+  border-color: rgba(117, 141, 184, 0.30) !important;
+  background: linear-gradient(180deg, rgba(15, 24, 45, 0.34), rgba(8, 14, 27, 0.08));
+}
+
+.maghrabi-studio-pro [class*="bg-[#050710]"],
 .maghrabi-studio-pro [class*="bg-[#080d17]"],
 .maghrabi-studio-pro [class*="bg-[#090e19]"] {
   background-color: var(--studio-panel) !important;
@@ -19,6 +44,11 @@
 
 .maghrabi-studio-pro [class*="bg-[#0b111d]"] {
   background-color: var(--studio-panel-2) !important;
+}
+
+.maghrabi-studio-pro [class*="bg-black/25"],
+.maghrabi-studio-pro [class*="bg-black/20"] {
+  background-color: rgba(6, 12, 27, 0.58) !important;
 }
 
 .maghrabi-studio-pro [class*="border-white/10"] {
@@ -31,6 +61,12 @@
   border-color: var(--studio-border-soft) !important;
 }
 
+.maghrabi-studio-pro .text-slate-100,
+.maghrabi-studio-pro .text-white {
+  color: var(--studio-text) !important;
+}
+
+.maghrabi-studio-pro .text-slate-400,
 .maghrabi-studio-pro .text-slate-500 {
   color: var(--studio-text-muted) !important;
 }
@@ -43,7 +79,34 @@
 .maghrabi-studio-pro section > aside > div,
 .maghrabi-studio-pro section > div > div,
 .maghrabi-studio-pro aside > div {
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  border-color: var(--studio-border-soft) !important;
+  background-image: linear-gradient(145deg, rgba(24, 37, 65, 0.94), rgba(13, 23, 43, 0.96));
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 0 0 1px rgba(99, 102, 241, 0.025);
+}
+
+.maghrabi-studio-pro input,
+.maghrabi-studio-pro select,
+.maghrabi-studio-pro textarea {
+  color: var(--studio-text) !important;
+  border-color: rgba(112, 138, 184, 0.34) !important;
+  background: rgba(9, 16, 33, 0.88) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.maghrabi-studio-pro input::placeholder,
+.maghrabi-studio-pro textarea::placeholder {
+  color: #8192ab !important;
+}
+
+.maghrabi-studio-pro input:focus,
+.maghrabi-studio-pro select:focus,
+.maghrabi-studio-pro textarea:focus {
+  border-color: rgba(34, 211, 238, 0.60) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.10);
 }
 
 .maghrabi-studio-pro input,
@@ -52,14 +115,34 @@
   text-rendering: geometricPrecision;
 }
 
+.maghrabi-studio-pro button,
+.maghrabi-studio-pro a {
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 140ms ease, filter 140ms ease;
+}
+
 .maghrabi-studio-pro button:not(:disabled):hover,
 .maghrabi-studio-pro a:hover {
-  filter: brightness(1.12);
+  filter: brightness(1.10);
+  border-color: rgba(103, 232, 249, 0.44) !important;
+}
+
+.maghrabi-studio-pro button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.maghrabi-studio-pro [class*="from-violet-500"][class*="to-cyan-500"] {
+  background-image: linear-gradient(135deg, var(--studio-indigo), var(--studio-cyan)) !important;
+  box-shadow: 0 10px 24px rgba(34, 211, 238, 0.14), 0 5px 18px rgba(99, 102, 241, 0.18);
+}
+
+.maghrabi-studio-pro [class*="bg-violet-300/10"],
+.maghrabi-studio-pro [class*="bg-cyan-300/10"] {
+  box-shadow: inset 0 0 0 1px rgba(112, 140, 255, 0.06);
 }
 
 .maghrabi-studio-pro .maghrabi-playhead {
-  width: 14px !important;
-  margin-left: -7px;
+  width: 16px !important;
+  margin-left: -8px;
   background: transparent !important;
   cursor: ew-resize !important;
   touch-action: none;
@@ -69,13 +152,13 @@
 .maghrabi-studio-pro .maghrabi-playhead::before {
   content: '';
   position: absolute;
-  left: 6px;
+  left: 7px;
   top: 0;
   bottom: 0;
   width: 2px;
   border-radius: 999px;
-  background: #ff4057;
-  box-shadow: 0 0 0 1px rgba(255, 64, 87, 0.28), 0 0 10px rgba(255, 64, 87, 0.28);
+  background: var(--studio-danger);
+  box-shadow: 0 0 0 1px rgba(255, 77, 109, 0.24), 0 0 12px rgba(255, 77, 109, 0.42);
 }
 
 .maghrabi-studio-pro .maghrabi-playhead::after {
@@ -83,24 +166,24 @@
   position: absolute;
   left: 1px;
   top: -2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 3px 3px 8px 8px;
-  background: #ff4057;
-  box-shadow: 0 2px 10px rgba(255, 64, 87, 0.42);
+  width: 14px;
+  height: 13px;
+  border-radius: 4px 4px 9px 9px;
+  background: var(--studio-danger);
+  box-shadow: 0 4px 14px rgba(255, 77, 109, 0.48);
 }
 
 .maghrabi-studio-pro .maghrabi-playhead:hover::before,
 .maghrabi-studio-pro .maghrabi-playhead--dragging::before {
   width: 3px;
-  left: 5.5px;
-  background: #ff6678;
+  left: 6.5px;
+  background: #ff718b;
 }
 
 .maghrabi-studio-pro .maghrabi-playhead:hover::after,
 .maghrabi-studio-pro .maghrabi-playhead--dragging::after {
-  transform: scale(1.12);
-  background: #ff6678;
+  transform: scale(1.14);
+  background: #ff718b;
 }
 
 .maghrabi-studio-pro .maghrabi-time-ruler {
@@ -113,9 +196,9 @@
   touch-action: none;
   user-select: none;
   overflow: hidden;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-  background: linear-gradient(180deg, rgba(19, 29, 44, 0.98), rgba(12, 20, 32, 0.98));
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.025);
+  border-bottom: 1px solid rgba(115, 142, 190, 0.34);
+  background: linear-gradient(180deg, rgba(25, 39, 68, 0.99), rgba(13, 23, 43, 0.99));
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.035), 0 4px 18px rgba(0, 0, 0, 0.14);
 }
 
 .maghrabi-studio-pro .maghrabi-ruler-corner {
@@ -128,20 +211,20 @@
   justify-content: space-between;
   gap: 6px;
   padding: 0 8px;
-  border-right: 1px solid rgba(148, 163, 184, 0.22);
-  background: #111827;
-  color: #9fb0c6;
+  border-right: 1px solid rgba(115, 142, 190, 0.34);
+  background: linear-gradient(180deg, #172441, #101a30);
+  color: #c8d5e8;
   font-size: 8px;
   font-weight: 900;
   letter-spacing: .12em;
 }
 
 .maghrabi-studio-pro .maghrabi-snap-toggle {
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  border: 1px solid rgba(112, 138, 184, 0.34);
   border-radius: 7px;
   padding: 3px 5px;
-  background: rgba(15, 23, 36, .85);
-  color: #8494aa;
+  background: rgba(11, 19, 37, .92);
+  color: #9fb0c8;
   font-size: 7px;
   font-weight: 900;
   letter-spacing: .06em;
@@ -149,10 +232,10 @@
 }
 
 .maghrabi-studio-pro .maghrabi-snap-toggle.is-on {
-  border-color: rgba(52, 211, 153, .5);
-  background: rgba(16, 185, 129, .13);
-  color: #a7f3d0;
-  box-shadow: 0 0 12px rgba(16, 185, 129, .08);
+  border-color: rgba(52, 211, 153, .58);
+  background: rgba(16, 185, 129, .16);
+  color: #d1fae5;
+  box-shadow: 0 0 14px rgba(16, 185, 129, .12);
 }
 
 .maghrabi-studio-pro .maghrabi-ruler-tick {
@@ -160,13 +243,13 @@
   bottom: 0;
   width: 1px;
   height: 6px;
-  background: rgba(148, 163, 184, .28);
+  background: rgba(161, 181, 214, .34);
   pointer-events: none;
 }
 
 .maghrabi-studio-pro .maghrabi-ruler-tick.is-major {
   height: 12px;
-  background: rgba(203, 213, 225, .58);
+  background: rgba(226, 232, 240, .70);
 }
 
 .maghrabi-studio-pro .maghrabi-ruler-tick > span {
@@ -174,7 +257,7 @@
   bottom: 11px;
   left: 4px;
   white-space: nowrap;
-  color: #aebed0;
+  color: #d5dfed;
   font-size: 8px;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
@@ -194,8 +277,8 @@
 }
 
 .maghrabi-studio-pro .maghrabi-snap-guide {
-  background: #34d399;
-  box-shadow: 0 0 10px rgba(52, 211, 153, .55);
+  background: var(--studio-emerald);
+  box-shadow: 0 0 11px rgba(52, 211, 153, .62);
 }
 
 .maghrabi-studio-pro .maghrabi-snap-guide::before {
@@ -203,10 +286,10 @@
   position: absolute;
   top: 4px;
   left: 5px;
-  border: 1px solid rgba(52, 211, 153, .36);
+  border: 1px solid rgba(52, 211, 153, .46);
   border-radius: 7px;
   padding: 3px 5px;
-  background: rgba(6, 78, 59, .92);
+  background: rgba(6, 78, 59, .96);
   color: #d1fae5;
   white-space: nowrap;
   font-size: 7px;
@@ -221,11 +304,11 @@
 
 .maghrabi-studio-pro .maghrabi-hover-guide {
   z-index: 54;
-  background: rgba(103, 232, 249, .3);
+  background: rgba(34, 211, 238, .40);
 }
 
 .maghrabi-studio-pro .maghrabi-hover-guide.is-snapped {
-  background: rgba(52, 211, 153, .45);
+  background: rgba(52, 211, 153, .52);
 }
 
 .maghrabi-studio-pro .maghrabi-hover-time {
@@ -235,17 +318,17 @@
   transform: translateX(-50%);
   opacity: 0;
   pointer-events: none;
-  border: 1px solid rgba(103, 232, 249, .25);
+  border: 1px solid rgba(34, 211, 238, .36);
   border-radius: 7px;
   padding: 3px 6px;
-  background: rgba(8, 17, 31, .96);
-  color: #cffafe;
+  background: rgba(8, 17, 36, .98);
+  color: #e6fbff;
   white-space: nowrap;
   font-size: 8px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
   letter-spacing: .04em;
-  box-shadow: 0 5px 14px rgba(0, 0, 0, .28);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .34), 0 0 14px rgba(34, 211, 238, 0.08);
   transition: opacity 60ms ease;
 }
 
@@ -254,7 +337,7 @@
 }
 
 .maghrabi-studio-pro .maghrabi-hover-time.is-snapped {
-  border-color: rgba(52, 211, 153, .4);
+  border-color: rgba(52, 211, 153, .5);
   color: #d1fae5;
 }
 
@@ -266,6 +349,6 @@ body.maghrabi-scrubbing * {
 
 @media (max-width: 1280px) {
   .maghrabi-studio-pro .text-slate-500 {
-    color: #a8b5c7 !important;
+    color: #c0ccdc !important;
   }
 }
