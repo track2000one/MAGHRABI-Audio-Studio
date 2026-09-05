@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import StudioAdvancedTimelineEditPro from './StudioAdvancedTimelineEditPro'
 import StudioAdvancedTrimPro from './StudioAdvancedTrimPro'
+import StudioAudioMixerPro from './StudioAudioMixerPro'
 import StudioAudioTimelinePro from './StudioAudioTimelinePro'
 import StudioAVSyncPro from './StudioAVSyncPro'
 import StudioCommandPalette from './StudioCommandPalette'
@@ -57,6 +58,7 @@ export default function StudioProApp() {
       <StudioTransportPro />
       <StudioWorkspaceResizePro />
       <StudioCreativeSuite />
+      <StudioAudioMixerPro />
       <StudioTitlePreviewPro />
       <StudioProjectStatus />
       <StudioCommandPalette />
