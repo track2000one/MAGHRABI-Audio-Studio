@@ -14,6 +14,7 @@ import './studioThemes.css'
 import './studioCreatorTeal.css'
 import './studioCreatorWorkspace.css'
 import './studioCreativeSuite.css'
+import './studioSequencePlayback.css'
 
 export default function StudioProApp() {
   const [theme, setTheme] = useState<StudioThemeId>(() => getInitialStudioTheme())
