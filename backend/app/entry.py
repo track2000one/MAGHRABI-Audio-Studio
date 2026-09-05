@@ -37,6 +37,7 @@ from .video_tools_v32_runtime import router as video_tools_v32_router, install_v
 from .video_tools_v33_runtime import router as video_tools_v33_router, install_v33
 from .video_tools_v34_runtime import router as video_tools_v34_router, install_v34
 from .video_tools_v40_runtime import router as video_tools_v40_router, install_v40
+from .video_tools_cut_transitions import install_cut_transition_engine
 from .security_hardening_v38 import install_security_hardening
 
 # main.py mounts the SPA at "/". Keep that catch-all route last so API
@@ -82,6 +83,11 @@ app.include_router(video_tools_v33_router)
 app.include_router(video_tools_v34_router)
 app.include_router(video_tools_v40_router)
 app.router.routes.extend(static_mounts)
+
+# Upgrade the shared V9 renderer used by V10/V11/V12 with per-cut transition
+# support. Projects without transitionOut metadata continue to use the proven
+# historical V4 builder unchanged.
+install_cut_transition_engine()
 
 # Install the historical reliability/release gates first, then V40 as the
 # non-waivable final Production gate. HTTP security hardening is outermost so
