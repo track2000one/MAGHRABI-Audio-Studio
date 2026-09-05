@@ -1,0 +1,212 @@
+name: Creator Editor E2E Smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: creator-editor-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  creator-editor-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build exact production container
+        run: docker build -t maghrabi-creator-smoke:${GITHUB_SHA} .
+
+      - name: Generate synthetic video and audio fixtures
+        run: |
+          set -euo pipefail
+          mkdir -p creator-smoke
+          IMAGE="maghrabi-creator-smoke:${GITHUB_SHA}"
+          docker run --rm -v "$PWD/creator-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
+            -f lavfi -i "color=c=0x176B87:s=640x360:r=30:d=1.8" \
+            -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1.8" \
+            -shortest -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k /work/clip-a.mp4
+          docker run --rm -v "$PWD/creator-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
+            -f lavfi -i "color=c=0xB45309:s=640x360:r=30:d=1.8" \
+            -f lavfi -i "sine=frequency=660:sample_rate=48000:duration=1.8" \
+            -shortest -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k /work/clip-b.mp4
+          docker run --rm -v "$PWD/creator-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
+            -f lavfi -i "sine=frequency=220:sample_rate=48000:duration=3.2" \
+            -c:a pcm_s16le /work/music.wav
+          test -s creator-smoke/clip-a.mp4
+          test -s creator-smoke/clip-b.mp4
+          test -s creator-smoke/music.wav
+
+      - name: Start production API
+        run: |
+          set -euo pipefail
+          IMAGE="maghrabi-creator-smoke:${GITHUB_SHA}"
+          docker run -d --name maghrabi-creator-e2e -p 18002:8000 \
+            -e ADMIN_USERNAME=creator-smoke-admin \
+            -e ADMIN_PASSWORD=creator-smoke-password-only-for-ci \
+            -e AUTH_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+            -e DATA_DIR=/data \
+            -e ENABLE_API_DOCS=0 \
+            "$IMAGE"
+          READY=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:18002/api/health > creator-smoke/health.json; then READY=1; break; fi
+            sleep 2
+          done
+          test "$READY" = "1"
+          grep -q '"status":"ok"' creator-smoke/health.json
+
+      - name: Authenticate and enqueue professional creative render
+        run: |
+          set -euo pipefail
+          curl -fsS -c creator-smoke/cookies.txt \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"creator-smoke-admin","password":"creator-smoke-password-only-for-ci"}' \
+            http://127.0.0.1:18002/api/auth/login > creator-smoke/login.json
+          grep -q '"authenticated":true' creator-smoke/login.json
+          cat > creator-smoke/manifest.json <<'JSON'
+          {
+            "clips": [
+              {
+                "fileIndex": 0,
+                "start": 0.0,
+                "end": 1.75,
+                "speed": 1.0,
+                "volume": 1.0,
+                "filter": "cinematic",
+                "text": "",
+                "textSize": 48,
+                "textPosition": "bottom",
+                "brightness": 0.02,
+                "contrast": 1.12,
+                "saturation": 1.05,
+                "temperature": -0.08,
+                "vignette": 0.18,
+                "speedRamp": "off",
+                "audioFadeIn": 0.12,
+                "audioFadeOut": 0.12,
+                "timelineStartAt": 0.0
+              },
+              {
+                "fileIndex": 1,
+                "start": 0.0,
+                "end": 1.75,
+                "speed": 1.25,
+                "volume": 0.95,
+                "filter": "warm",
+                "text": "",
+                "textSize": 48,
+                "textPosition": "bottom",
+                "brightness": 0.01,
+                "contrast": 1.08,
+                "saturation": 1.10,
+                "temperature": 0.12,
+                "vignette": 0.12,
+                "speedRamp": "off",
+                "audioFadeIn": 0.12,
+                "audioFadeOut": 0.12,
+                "timelineStartAt": 1.45
+              }
+            ],
+            "textTracks": [
+              {"text":"MAGHRABI CREATOR","startAt":0.15,"endAt":1.25,"size":44,"position":"top"}
+            ],
+            "subtitleTracks": [
+              {"text":"PROFESSIONAL EDITOR SMOKE","startAt":0.25,"endAt":2.55,"size":28,"position":"bottom","color":"#ffffff","boxOpacity":0.45}
+            ],
+            "audioTracks": [
+              {"fileIndex":0,"startAt":0.0,"sourceStart":0.0,"sourceEnd":3.0,"volume":0.25,"fadeIn":0.18,"fadeOut":0.22}
+            ],
+            "imageTracks": [],
+            "videoOverlays": [],
+            "transition": "dissolve",
+            "transitionDuration": 0.30,
+            "audioDuckingEnabled": true,
+            "duckingStrength": 0.55,
+            "magneticSnap": true
+          }
+          JSON
+          curl -fsS -b creator-smoke/cookies.txt \
+            -F 'video_files=@creator-smoke/clip-a.mp4;type=video/mp4' \
+            -F 'video_files=@creator-smoke/clip-b.mp4;type=video/mp4' \
+            -F 'audio_files=@creator-smoke/music.wav;type=audio/wav' \
+            -F 'manifest=<creator-smoke/manifest.json' \
+            -F 'output_size=720p' \
+            -F 'quality=draft' \
+            -F 'name=Creator E2E Creative Smoke' \
+            http://127.0.0.1:18002/api/video/v12/queue > creator-smoke/enqueue.json
+          python - <<'PY'
+          import json
+          p=json.load(open('creator-smoke/enqueue.json'))
+          assert p.get('id'), p
+          open('creator-smoke/job-id.txt','w').write(p['id'])
+          print('queued', p['id'], p.get('status'))
+          PY
+
+      - name: Wait for render and verify final MP4
+        run: |
+          set -euo pipefail
+          JOB_ID=$(cat creator-smoke/job-id.txt)
+          STATUS=""
+          for attempt in $(seq 1 120); do
+            curl -fsS -b creator-smoke/cookies.txt http://127.0.0.1:18002/api/video/v12/jobs > creator-smoke/jobs.json
+            STATUS=$(JOB_ID="$JOB_ID" python - <<'PY'
+          import json, os
+          job_id=os.environ['JOB_ID']
+          jobs=json.load(open('creator-smoke/jobs.json')).get('jobs', [])
+          job=next((x for x in jobs if x.get('id')==job_id), {})
+          print(job.get('status','missing'))
+          PY
+            )
+            echo "render status: $STATUS"
+            if [ "$STATUS" = "done" ]; then break; fi
+            if [ "$STATUS" = "failed" ]; then cat creator-smoke/jobs.json; docker logs maghrabi-creator-e2e; exit 1; fi
+            sleep 2
+          done
+          test "$STATUS" = "done"
+          curl -fsS -b creator-smoke/cookies.txt \
+            http://127.0.0.1:18002/api/video/v12/jobs/${JOB_ID}/result \
+            -o creator-smoke/result.mp4
+          test -s creator-smoke/result.mp4
+          IMAGE="maghrabi-creator-smoke:${GITHUB_SHA}"
+          docker run --rm -v "$PWD/creator-smoke:/work" --entrypoint ffprobe "$IMAGE" \
+            -v error -show_entries format=duration -show_entries stream=codec_type,codec_name,width,height \
+            -of json /work/result.mp4 > creator-smoke/ffprobe.json
+          python - <<'PY'
+          import json
+          p=json.load(open('creator-smoke/ffprobe.json'))
+          duration=float(p['format']['duration'])
+          streams=p.get('streams',[])
+          assert duration > 1.8, duration
+          assert any(s.get('codec_type')=='video' and s.get('codec_name')=='h264' for s in streams), streams
+          assert any(s.get('codec_type')=='audio' for s in streams), streams
+          video=next(s for s in streams if s.get('codec_type')=='video')
+          assert video.get('width')==1280 and video.get('height')==720, video
+          print('creative-render-ok', duration, streams)
+          PY
+
+      - name: Save creator smoke evidence
+        if: always()
+        run: |
+          docker logs maghrabi-creator-e2e > creator-smoke/container.log 2>&1 || true
+          docker rm -f maghrabi-creator-e2e >/dev/null 2>&1 || true
+
+      - name: Upload creator smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: creator-editor-e2e-${{ github.sha }}
+          path: |
+            creator-smoke/manifest.json
+            creator-smoke/enqueue.json
+            creator-smoke/jobs.json
+            creator-smoke/ffprobe.json
+            creator-smoke/container.log
+          if-no-files-found: warn
+          retention-days: 14
