@@ -4,6 +4,7 @@ import StudioAdvancedTrimPro from './StudioAdvancedTrimPro'
 import StudioCommandPalette from './StudioCommandPalette'
 import StudioCreativeSuite from './StudioCreativeSuite'
 import StudioEditingCorePro from './StudioEditingCorePro'
+import StudioFrameClockPro from './StudioFrameClockPro'
 import StudioPrecisionEditPro from './StudioPrecisionEditPro'
 import StudioProjectStatus from './StudioProjectStatus'
 import StudioSequencePlaybackPro from './StudioSequencePlaybackPro'
@@ -40,6 +41,7 @@ export default function StudioProApp() {
       <StudioWorkspaceNav />
       <VideoStudioCreator />
       <StudioTimelineEnhancer />
+      <StudioFrameClockPro />
       <StudioAdvancedTimelineEditPro />
       <StudioTimelineInteractionPro />
       <StudioAdvancedTrimPro />
