@@ -1,0 +1,209 @@
+.maghrabi-studio-pro button.maghrabi-audio-pro-clip {
+  position: absolute;
+  isolation: isolate;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  background-image:
+    linear-gradient(90deg, rgba(34, 211, 238, .055), rgba(14, 116, 144, .03)),
+    linear-gradient(180deg, rgba(8, 33, 46, .88), rgba(7, 22, 34, .92));
+}
+
+.maghrabi-studio-pro button.maghrabi-audio-pro-clip::before {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(103,232,249,.12), rgba(103,232,249,.015)) left / var(--maghrabi-audio-fade-in, 0%) 100% no-repeat,
+    linear-gradient(270deg, rgba(103,232,249,.12), rgba(103,232,249,.015)) right / var(--maghrabi-audio-fade-out, 0%) 100% no-repeat;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-waveform {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: .92;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-clip-label {
+  position: relative;
+  z-index: 7;
+  text-shadow: 0 1px 5px rgba(0,0,0,.86);
+  pointer-events: none;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-gain-svg {
+  position: absolute;
+  inset: 3px 0;
+  z-index: 4;
+  width: 100%;
+  height: calc(100% - 6px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-gain-svg polyline {
+  fill: none;
+  stroke: rgba(253, 230, 138, .88);
+  stroke-width: 1.15;
+  filter: drop-shadow(0 0 2px rgba(245, 158, 11, .45));
+}
+
+.maghrabi-studio-pro .maghrabi-audio-gain-point,
+.maghrabi-studio-pro .maghrabi-audio-base-gain,
+.maghrabi-studio-pro .maghrabi-audio-fade-handle {
+  position: absolute;
+  z-index: 12;
+  display: block;
+  touch-action: none;
+  user-select: none;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-gain-point {
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: 2px;
+  background: #fbbf24;
+  box-shadow: 0 0 0 2px rgba(251,191,36,.10), 0 0 9px rgba(251,191,36,.34);
+  cursor: move;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-gain-point:hover {
+  width: 11px;
+  height: 11px;
+  background: #fde68a;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-base-gain {
+  left: 50%;
+  width: 18px;
+  height: 6px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(253,230,138,.58);
+  border-radius: 999px;
+  background: rgba(120, 53, 15, .92);
+  box-shadow: 0 0 8px rgba(245,158,11,.24);
+  opacity: .18;
+  cursor: ns-resize;
+  transition: opacity 100ms ease, width 100ms ease;
+}
+
+.maghrabi-studio-pro button.maghrabi-audio-pro-clip.border-cyan-100 .maghrabi-audio-base-gain,
+.maghrabi-studio-pro button.maghrabi-audio-pro-clip:hover .maghrabi-audio-base-gain {
+  opacity: .9;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-fade-handle {
+  top: 2px;
+  width: 9px;
+  height: 9px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(207,250,254,.78);
+  border-radius: 50%;
+  background: rgba(6,182,212,.95);
+  box-shadow: 0 0 8px rgba(34,211,238,.42);
+  cursor: ew-resize;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-fade-handle::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  width: 1px;
+  height: 36px;
+  background: linear-gradient(rgba(103,232,249,.62), transparent);
+  pointer-events: none;
+}
+
+.maghrabi-studio-pro .maghrabi-audio-fade-handle.is-in::after { left: 4px; }
+.maghrabi-studio-pro .maghrabi-audio-fade-handle.is-out::after { right: 4px; }
+
+.maghrabi-studio-pro button.maghrabi-audio-pro-clip.is-audio-slipping {
+  outline: 1px dashed rgba(253,230,138,.78);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(245,158,11,.16), 0 12px 24px rgba(0,0,0,.34) !important;
+}
+
+.maghrabi-studio-pro button.maghrabi-audio-pro-clip[data-maghrabi-audio-edit]::after {
+  content: attr(data-maghrabi-audio-edit);
+  position: absolute;
+  z-index: 30;
+  inset: auto 6px 4px 6px;
+  height: auto;
+  border-radius: 6px;
+  padding: 2px 4px;
+  background: rgba(2, 8, 18, .9);
+  color: #fef3c7;
+  font-size: 7px;
+  font-weight: 950;
+  letter-spacing: .04em;
+  text-align: center;
+  opacity: 1;
+}
+
+.maghrabi-studio-pro button.maghrabi-audio-pro-clip.is-audio-ducking {
+  box-shadow: inset 0 -3px 0 rgba(52,211,153,.34), 0 5px 12px rgba(0,0,0,.16);
+}
+
+.maghrabi-studio-pro .maghrabi-audio-duck-badge {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  z-index: 11;
+  border: 1px solid rgba(110,231,183,.22);
+  border-radius: 5px;
+  padding: 1px 3px;
+  background: rgba(6,78,59,.72);
+  color: #a7f3d0;
+  font-size: 5px;
+  font-weight: 950;
+  letter-spacing: .07em;
+  pointer-events: none;
+}
+
+body.maghrabi-audio-editing,
+body.maghrabi-audio-editing * {
+  cursor: ew-resize !important;
+  user-select: none !important;
+}
+
+.maghrabi-audio-pro-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 138px;
+  z-index: 180;
+  max-width: min(620px, calc(100vw - 24px));
+  transform: translate(-50%, 10px);
+  border: 1px solid rgba(103,232,249,.24);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: rgba(4, 14, 24, .96);
+  color: #cffafe;
+  box-shadow: 0 16px 38px rgba(0,0,0,.42), 0 0 20px rgba(34,211,238,.08);
+  font-size: 9px;
+  font-weight: 950;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 130ms ease, transform 130ms ease;
+  backdrop-filter: blur(12px);
+}
+
+.maghrabi-audio-pro-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 900px) {
+  .maghrabi-studio-pro .maghrabi-audio-base-gain,
+  .maghrabi-studio-pro .maghrabi-audio-duck-badge {
+    display: none;
+  }
+}
