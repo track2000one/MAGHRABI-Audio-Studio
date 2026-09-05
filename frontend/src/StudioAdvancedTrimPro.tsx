@@ -59,10 +59,6 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Number.isFinite(value) ? value : min))
 }
 
-function isVideoLane(value: string): value is VideoLane {
-  return value === 'V1' || value === 'V2' || value === 'V3'
-}
-
 function parseZoom() {
   const spans = Array.from(document.querySelectorAll<HTMLSpanElement>(`${ROOT} span`))
   for (const span of spans) {
@@ -314,7 +310,10 @@ async function rollingTrim(ref: ClipRef, edge: 'in' | 'out', requestedTimeline: 
 function neighborButton(button: HTMLButtonElement, ref: ClipRef, edge: 'in' | 'out') {
   const siblings = Array.from(button.parentElement?.querySelectorAll<HTMLButtonElement>('button.maghrabi-pro-clip') || [])
     .map((element) => ({ element, ref: clipRef(element) }))
-    .filter((item): item is { element: HTMLButtonElement; ref: ClipRef } => Boolean(item.ref) && item.ref.lane === ref.lane)
+    .filter((item): item is { element: HTMLButtonElement; ref: ClipRef } => {
+      const candidate = item.ref
+      return candidate !== null && candidate.lane === ref.lane
+    })
     .sort((a, b) => a.ref.startAt - b.ref.startAt)
   const index = siblings.findIndex((item) => item.element === button)
   return edge === 'out' ? siblings[index + 1]?.element || null : siblings[index - 1]?.element || null
