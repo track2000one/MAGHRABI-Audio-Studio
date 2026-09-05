@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
-export type StudioThemeId = 'midnight-pro' | 'graphite-gold' | 'light-studio' | 'ocean-blue' | 'amoled-black'
+export type StudioThemeId = 'creator-teal' | 'midnight-pro' | 'graphite-gold' | 'light-studio' | 'ocean-blue' | 'amoled-black'
 
-export const STUDIO_THEME_STORAGE_KEY = 'maghrabi-studio-theme-v1'
+export const STUDIO_THEME_STORAGE_KEY = 'maghrabi-studio-theme-v2'
 
 export const STUDIO_THEMES: Array<{
   id: StudioThemeId
@@ -10,6 +10,12 @@ export const STUDIO_THEMES: Array<{
   description: string
   swatches: [string, string, string]
 }> = [
+  {
+    id: 'creator-teal',
+    name: 'Creator Teal',
+    description: 'Film-style dark graphite · mint teal',
+    swatches: ['#172129', '#4ce1c1', '#283640'],
+  },
   {
     id: 'midnight-pro',
     name: 'Midnight Pro',
@@ -43,9 +49,9 @@ export const STUDIO_THEMES: Array<{
 ]
 
 export function getInitialStudioTheme(): StudioThemeId {
-  if (typeof window === 'undefined') return 'midnight-pro'
+  if (typeof window === 'undefined') return 'creator-teal'
   const stored = window.localStorage.getItem(STUDIO_THEME_STORAGE_KEY) as StudioThemeId | null
-  return STUDIO_THEMES.some((theme) => theme.id === stored) ? stored! : 'midnight-pro'
+  return STUDIO_THEMES.some((theme) => theme.id === stored) ? stored! : 'creator-teal'
 }
 
 type Props = {
