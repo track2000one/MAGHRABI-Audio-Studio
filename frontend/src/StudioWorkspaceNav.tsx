@@ -1,11 +1,13 @@
 import {
   Captions,
   Film,
+  Gauge,
   Grid2X2,
   Images,
   Layers3,
   Music2,
   Send,
+  SlidersHorizontal,
   Sparkles,
   WandSparkles,
 } from 'lucide-react'
@@ -22,6 +24,8 @@ const tabs: NavTab[] = [
   { label: 'TITLES', creative: 'titles', icon: Captions },
   { label: 'TRANSITIONS', creative: 'transitions', icon: Layers3 },
   { label: 'EFFECTS', creative: 'looks', icon: Sparkles },
+  { label: 'SPEED', creative: 'speed', icon: Gauge },
+  { label: 'MIX', creative: 'audio', icon: SlidersHorizontal },
   { label: 'ELEMENTS', href: '#video-v5', icon: Images },
   { label: 'SPLIT SCREEN', href: '#video-v5', icon: Grid2X2 },
 ]
