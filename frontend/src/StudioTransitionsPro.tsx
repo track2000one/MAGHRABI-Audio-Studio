@@ -273,7 +273,10 @@ export default function StudioTransitionsPro() {
       if (!surface) return
       const zoom = parseZoom()
       const buttons = Array.from(surface.querySelectorAll<HTMLButtonElement>('button.maghrabi-pro-clip'))
-      const refs = buttons.map(clipRef).filter((ref): ref is ClipRef => Boolean(ref) && ref.lane === 'V1').sort((a, b) => a.startAt - b.startAt)
+      const refs = buttons
+        .map(clipRef)
+        .filter((ref): ref is ClipRef => ref !== null && ref.lane === 'V1')
+        .sort((a, b) => a.startAt - b.startAt)
 
       let layer = surface.querySelector<HTMLElement>(':scope > .maghrabi-transition-layer')
       if (!layer) {
@@ -324,7 +327,9 @@ export default function StudioTransitionsPro() {
         handle.title = type === 'none'
           ? 'Transition · انقر لاختيار انتقال أو اسحب أفقياً لإنشاء Dissolve'
           : `${type} · ${formatDuration(duration)} · Click settings · Drag duration`
-        handle.innerHTML = '<span></span>'
+        const badge = document.createElement('span')
+        badge.textContent = handle.dataset.short
+        handle.appendChild(badge)
         layer.appendChild(handle)
       }
     }
