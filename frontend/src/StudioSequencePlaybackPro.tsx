@@ -9,6 +9,12 @@ type ClipBox = {
   end: number
 }
 
+function parseClock(value: string) {
+  const match = value.trim().match(/^(\d+):(\d+(?:\.\d+)?)$/)
+  if (!match) return Number.NaN
+  return Number(match[1]) * 60 + Number(match[2])
+}
+
 function parseZoom() {
   const spans = Array.from(document.querySelectorAll<HTMLSpanElement>(`${ROOT} span`))
   for (const span of spans) {
@@ -32,6 +38,18 @@ function playheadTime() {
   return Math.max(0, (playheadRect.left + playheadRect.width / 2 - timelineRect.left - HEADER_WIDTH) / zoom)
 }
 
+function clipTimingFromLabel(button: HTMLButtonElement) {
+  const spans = Array.from(button.querySelectorAll<HTMLSpanElement>('span'))
+  for (const span of spans) {
+    const match = (span.textContent || '').match(/(\d+:\d+(?:\.\d+)?)\s*·\s*(\d+:\d+(?:\.\d+)?)/)
+    if (!match) continue
+    const start = parseClock(match[1])
+    const duration = parseClock(match[2])
+    if (Number.isFinite(start) && Number.isFinite(duration) && duration > 0) return { start, duration }
+  }
+  return null
+}
+
 function v1Clips(): ClipBox[] {
   const zoom = parseZoom()
   const timeline = timelineRoot()
@@ -39,8 +57,9 @@ function v1Clips(): ClipBox[] {
   return Array.from(timeline.querySelectorAll<HTMLButtonElement>('button[style*="left"][style*="width"]'))
     .filter((button) => /^V1\s*·/i.test((button.textContent || '').trim()))
     .map((button) => {
-      const start = Math.max(0, (Number.parseFloat(button.style.left) || 0) / zoom)
-      const duration = Math.max(.02, (Number.parseFloat(button.style.width) || button.getBoundingClientRect().width || 0) / zoom)
+      const labelled = clipTimingFromLabel(button)
+      const start = labelled?.start ?? Math.max(0, (Number.parseFloat(button.style.left) || 0) / zoom)
+      const duration = labelled?.duration ?? Math.max(.02, (Number.parseFloat(button.style.width) || button.getBoundingClientRect().width || 0) / zoom)
       return { button, start, end: start + duration }
     })
     .sort((a, b) => a.start - b.start)
