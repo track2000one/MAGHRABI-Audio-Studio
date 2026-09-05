@@ -11,6 +11,7 @@ import StudioThemeSelector, { getInitialStudioTheme, STUDIO_THEME_STORAGE_KEY, t
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
 import StudioTimelineInteractionPro from './StudioTimelineInteractionPro'
 import StudioTitlePreviewPro from './StudioTitlePreviewPro'
+import StudioTransitionPreviewPro from './StudioTransitionPreviewPro'
 import StudioTransitionsPro from './StudioTransitionsPro'
 import StudioTransportPro from './StudioTransportPro'
 import StudioWorkspaceNav from './StudioWorkspaceNav'
@@ -22,6 +23,7 @@ import './studioCreatorTeal.css'
 import './studioCreatorWorkspace.css'
 import './studioCreativeSuite.css'
 import './studioSequencePlayback.css'
+import './studioTransitionPreview.css'
 import './studioWorkspaceResize.css'
 import './studioTitlePreview.css'
 
@@ -44,6 +46,7 @@ export default function StudioProApp() {
       <StudioTransitionsPro />
       <StudioEditingCorePro />
       <StudioPrecisionEditPro />
+      <StudioTransitionPreviewPro />
       <StudioSequencePlaybackPro />
       <StudioTransportPro />
       <StudioWorkspaceResizePro />
