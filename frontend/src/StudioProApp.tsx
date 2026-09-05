@@ -7,6 +7,7 @@ import StudioProjectStatus from './StudioProjectStatus'
 import StudioSequencePlaybackPro from './StudioSequencePlaybackPro'
 import StudioThemeSelector, { getInitialStudioTheme, STUDIO_THEME_STORAGE_KEY, type StudioThemeId } from './StudioThemeSelector'
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
+import StudioTitlePreviewPro from './StudioTitlePreviewPro'
 import StudioWorkspaceNav from './StudioWorkspaceNav'
 import StudioWorkspaceResizePro from './StudioWorkspaceResizePro'
 import VideoStudioCreator from './VideoStudioCreator'
@@ -17,6 +18,7 @@ import './studioCreatorWorkspace.css'
 import './studioCreativeSuite.css'
 import './studioSequencePlayback.css'
 import './studioWorkspaceResize.css'
+import './studioTitlePreview.css'
 
 export default function StudioProApp() {
   const [theme, setTheme] = useState<StudioThemeId>(() => getInitialStudioTheme())
@@ -36,6 +38,7 @@ export default function StudioProApp() {
       <StudioSequencePlaybackPro />
       <StudioWorkspaceResizePro />
       <StudioCreativeSuite />
+      <StudioTitlePreviewPro />
       <StudioProjectStatus />
       <StudioCommandPalette />
       <StudioThemeSelector value={theme} onChange={setTheme} />
