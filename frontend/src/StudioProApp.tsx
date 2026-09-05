@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import StudioCommandPalette from './StudioCommandPalette'
+import StudioCreativeSuite from './StudioCreativeSuite'
 import StudioEditingCorePro from './StudioEditingCorePro'
 import StudioPrecisionEditPro from './StudioPrecisionEditPro'
 import StudioProjectStatus from './StudioProjectStatus'
+import StudioSequencePlaybackPro from './StudioSequencePlaybackPro'
 import StudioThemeSelector, { getInitialStudioTheme, STUDIO_THEME_STORAGE_KEY, type StudioThemeId } from './StudioThemeSelector'
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
 import StudioWorkspaceNav from './StudioWorkspaceNav'
@@ -11,6 +13,7 @@ import './studioProContrast.css'
 import './studioThemes.css'
 import './studioCreatorTeal.css'
 import './studioCreatorWorkspace.css'
+import './studioCreativeSuite.css'
 
 export default function StudioProApp() {
   const [theme, setTheme] = useState<StudioThemeId>(() => getInitialStudioTheme())
@@ -27,6 +30,8 @@ export default function StudioProApp() {
       <StudioTimelineEnhancer />
       <StudioEditingCorePro />
       <StudioPrecisionEditPro />
+      <StudioSequencePlaybackPro />
+      <StudioCreativeSuite />
       <StudioProjectStatus />
       <StudioCommandPalette />
       <StudioThemeSelector value={theme} onChange={setTheme} />
