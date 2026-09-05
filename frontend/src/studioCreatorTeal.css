@@ -1,0 +1,52 @@
+.maghrabi-studio-pro[data-studio-theme="creator-teal"] {
+  --studio-bg: #111820;
+  --studio-bg-2: #172029;
+  --studio-panel: #1b252e;
+  --studio-panel-2: #202c36;
+  --studio-panel-3: #283640;
+  --studio-border: rgba(113, 145, 160, 0.30);
+  --studio-border-soft: rgba(99, 128, 142, 0.20);
+  --studio-text: #eef6f6;
+  --studio-text-muted: #b9c7c9;
+  --studio-text-dim: #7f9196;
+  --studio-cyan: #4ce1c1;
+  --studio-indigo: #3fb8d0;
+  --studio-violet: #79a8ff;
+  --studio-emerald: #4ce1c1;
+  --studio-warning: #f3bf58;
+  --studio-danger: #ff6f78;
+  --studio-root-bg: linear-gradient(180deg, #17212a 0%, #10171e 52%, #0c1218 100%);
+  --studio-main-bg: linear-gradient(180deg, #172129 0%, #111920 55%, #0d141a 100%);
+  --studio-header-bg: linear-gradient(180deg, rgba(36, 49, 59, 0.92), rgba(24, 34, 42, 0.88));
+  --studio-panel-gradient: linear-gradient(180deg, rgba(31, 43, 52, 0.98), rgba(24, 34, 42, 0.99));
+  --studio-input-bg: rgba(18, 26, 33, 0.96);
+  --studio-ruler-bg: linear-gradient(180deg, #25323b, #1b252d);
+  --studio-ruler-corner-bg: linear-gradient(180deg, #2a3943, #202b33);
+  --studio-accent-border: rgba(76, 225, 193, 0.62);
+  --studio-focus-ring: rgba(76, 225, 193, 0.13);
+  --studio-overlay-bg: rgba(20, 29, 36, 0.98);
+}
+
+.maghrabi-studio-pro[data-studio-theme="creator-teal"] .maghrabi-creator-nav {
+  background: rgba(25, 35, 43, 0.97);
+}
+
+.maghrabi-studio-pro[data-studio-theme="creator-teal"] .maghrabi-creator-tab.is-active,
+.maghrabi-studio-pro[data-studio-theme="creator-teal"] .maghrabi-creator-tab:hover {
+  background: rgba(76, 225, 193, 0.08);
+}
+
+.maghrabi-studio-pro[data-studio-theme="creator-teal"] .maghrabi-creator-export {
+  background: #4ce1c1 !important;
+  border-color: #4ce1c1 !important;
+  color: #10221f !important;
+}
+
+.maghrabi-studio-pro[data-studio-theme="creator-teal"] main > div > section > div:nth-child(2) > div:nth-child(2) {
+  background-image: linear-gradient(180deg, rgba(24, 34, 42, .99), rgba(15, 22, 28, .99)) !important;
+}
+
+.maghrabi-studio-pro[data-studio-theme="creator-teal"] .maghrabi-playhead::before,
+.maghrabi-studio-pro[data-studio-theme="creator-teal"] .maghrabi-playhead::after {
+  background: #ff6f67;
+}
