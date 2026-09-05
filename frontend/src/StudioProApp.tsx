@@ -8,6 +8,7 @@ import StudioSequencePlaybackPro from './StudioSequencePlaybackPro'
 import StudioThemeSelector, { getInitialStudioTheme, STUDIO_THEME_STORAGE_KEY, type StudioThemeId } from './StudioThemeSelector'
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
 import StudioTitlePreviewPro from './StudioTitlePreviewPro'
+import StudioTransportPro from './StudioTransportPro'
 import StudioWorkspaceNav from './StudioWorkspaceNav'
 import StudioWorkspaceResizePro from './StudioWorkspaceResizePro'
 import VideoStudioCreator from './VideoStudioCreator'
@@ -36,6 +37,7 @@ export default function StudioProApp() {
       <StudioEditingCorePro />
       <StudioPrecisionEditPro />
       <StudioSequencePlaybackPro />
+      <StudioTransportPro />
       <StudioWorkspaceResizePro />
       <StudioCreativeSuite />
       <StudioTitlePreviewPro />
