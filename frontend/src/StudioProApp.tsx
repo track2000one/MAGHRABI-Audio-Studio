@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import StudioAdvancedTimelineEditPro from './StudioAdvancedTimelineEditPro'
 import StudioAdvancedTrimPro from './StudioAdvancedTrimPro'
+import StudioAVSyncPro from './StudioAVSyncPro'
 import StudioCommandPalette from './StudioCommandPalette'
 import StudioCreativeSuite from './StudioCreativeSuite'
 import StudioEditingCorePro from './StudioEditingCorePro'
@@ -42,6 +43,7 @@ export default function StudioProApp() {
       <VideoStudioCreator />
       <StudioTimelineEnhancer />
       <StudioFrameClockPro />
+      <StudioAVSyncPro />
       <StudioAdvancedTimelineEditPro />
       <StudioTimelineInteractionPro />
       <StudioAdvancedTrimPro />
