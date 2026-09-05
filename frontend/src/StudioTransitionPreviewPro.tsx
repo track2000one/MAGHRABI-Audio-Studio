@@ -72,7 +72,7 @@ type PreviewLayer = {
   video: HTMLVideoElement
   flash: HTMLDivElement
   hud: HTMLDivElement
-  progress: HTMLDivElement
+  progress: HTMLSpanElement
   label: HTMLSpanElement
 }
 
