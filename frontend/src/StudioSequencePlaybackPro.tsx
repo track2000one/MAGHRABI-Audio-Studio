@@ -7,6 +7,17 @@ type ClipBox = {
   button: HTMLButtonElement
   start: number
   end: number
+  fileIndex: number | null
+}
+
+type TransitionSkipPlan = {
+  type: string
+  rightFileIndex: number
+  rightTimelineStart: number
+  rightSourceStart: number
+  sourceSkip: number
+  timelineSkip: number
+  expiresAt: number
 }
 
 function parseClock(value: string) {
@@ -50,6 +61,11 @@ function clipTimingFromLabel(button: HTMLButtonElement) {
   return null
 }
 
+function clipFileIndex(button: HTMLButtonElement) {
+  const match = (button.textContent || '').trim().match(/^V1\s*·\s*V(\d+)/i)
+  return match ? Math.max(0, Number(match[1]) - 1) : null
+}
+
 function v1Clips(): ClipBox[] {
   const zoom = parseZoom()
   const timeline = timelineRoot()
@@ -60,7 +76,7 @@ function v1Clips(): ClipBox[] {
       const labelled = clipTimingFromLabel(button)
       const start = labelled?.start ?? Math.max(0, (Number.parseFloat(button.style.left) || 0) / zoom)
       const duration = labelled?.duration ?? Math.max(.02, (Number.parseFloat(button.style.width) || button.getBoundingClientRect().width || 0) / zoom)
-      return { button, start, end: start + duration }
+      return { button, start, end: start + duration, fileIndex: clipFileIndex(button) }
     })
     .sort((a, b) => a.start - b.start)
 }
@@ -97,6 +113,57 @@ function waitForNextVideo(previous: HTMLVideoElement | null, onReady: (video: HT
   window.setTimeout(() => waitForNextVideo(previous, onReady, attempt + 1), 35)
 }
 
+function transitionSkipFor(next: ClipBox): TransitionSkipPlan | null {
+  const raw = document.documentElement.dataset.maghrabiTransitionSkip
+  if (!raw) return null
+  try {
+    const plan = JSON.parse(raw) as TransitionSkipPlan
+    if (!Number.isFinite(plan.expiresAt) || Date.now() > plan.expiresAt) {
+      delete document.documentElement.dataset.maghrabiTransitionSkip
+      return null
+    }
+    if (next.fileIndex !== null && Number(plan.rightFileIndex) !== next.fileIndex) return null
+    if (Math.abs(Number(plan.rightTimelineStart) - next.start) > .45) return null
+    if (!Number.isFinite(plan.rightSourceStart) || !Number.isFinite(plan.sourceSkip)) return null
+    return plan
+  } catch {
+    delete document.documentElement.dataset.maghrabiTransitionSkip
+    return null
+  }
+}
+
+function markTransitionSkipConsumed(plan: TransitionSkipPlan) {
+  delete document.documentElement.dataset.maghrabiTransitionSkip
+  window.dispatchEvent(new CustomEvent('maghrabi-transition-skip-consumed', { detail: plan }))
+}
+
+function seekAfterTransition(video: HTMLVideoElement, plan: TransitionSkipPlan, done: () => void) {
+  let finished = false
+  let fallback = 0
+  const finish = () => {
+    if (finished) return
+    finished = true
+    window.clearTimeout(fallback)
+    video.removeEventListener('loadedmetadata', apply)
+    done()
+  }
+  const apply = () => {
+    const requested = Math.max(0, Number(plan.rightSourceStart) + Math.max(0, Number(plan.sourceSkip)))
+    const target = Number.isFinite(video.duration) && video.duration > .05
+      ? Math.min(requested, Math.max(0, video.duration - .02))
+      : requested
+    try { video.currentTime = target } catch {}
+    markTransitionSkipConsumed(plan)
+    finish()
+  }
+
+  if (video.readyState >= 1) apply()
+  else {
+    video.addEventListener('loadedmetadata', apply, { once: true })
+    fallback = window.setTimeout(apply, 500)
+  }
+}
+
 export default function StudioSequencePlaybackPro() {
   useEffect(() => {
     let sequenceActive = false
@@ -108,6 +175,7 @@ export default function StudioSequencePlaybackPro() {
       sequenceActive = false
       advancing = false
       document.documentElement.dataset.maghrabiSequencePlaying = '0'
+      delete document.documentElement.dataset.maghrabiTransitionSkip
     }
 
     const advance = (video: HTMLVideoElement) => {
@@ -122,15 +190,22 @@ export default function StudioSequencePlaybackPro() {
 
       advancing = true
       const previous = video
+      const skipPlan = transitionSkipFor(next)
       next.button.click()
       waitForNextVideo(previous, (nextVideo) => {
         if (!sequenceActive) { advancing = false; return }
-        nextVideo.play().then(() => {
-          document.documentElement.dataset.maghrabiSequencePlaying = '1'
-          advancing = false
-        }).catch(() => {
-          stop()
-        })
+
+        const resume = () => {
+          nextVideo.play().then(() => {
+            document.documentElement.dataset.maghrabiSequencePlaying = '1'
+            advancing = false
+          }).catch(() => {
+            stop()
+          })
+        }
+
+        if (skipPlan) seekAfterTransition(nextVideo, skipPlan, resume)
+        else resume()
       })
     }
 
