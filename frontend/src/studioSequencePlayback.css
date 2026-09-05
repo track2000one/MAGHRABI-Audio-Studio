@@ -1,0 +1,25 @@
+.maghrabi-sequence-playback-indicator {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 106;
+  transform: translateX(-50%) translateY(8px);
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--studio-cyan) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--studio-panel) 94%, transparent);
+  color: var(--studio-cyan);
+  font-size: 7px;
+  font-weight: 950;
+  letter-spacing: .16em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,.26);
+  backdrop-filter: blur(12px);
+}
+
+html[data-maghrabi-sequence-playing="1"] .maghrabi-sequence-playback-indicator {
+  opacity: .92;
+  transform: translateX(-50%) translateY(0);
+}
