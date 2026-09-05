@@ -73,7 +73,7 @@ export default function StudioWorkspaceResizePro() {
     let resizeObserver: ResizeObserver | null = null
     let mutationObserver: MutationObserver | null = null
 
-    const directAsides = () => section?.querySelectorAll<HTMLElement>(':scope > aside') || []
+    const directAsides = (): HTMLElement[] => section ? Array.from(section.querySelectorAll<HTMLElement>(':scope > aside')) : []
 
     const updateToolbar = () => {
       if (!toolbar) return
@@ -111,11 +111,11 @@ export default function StudioWorkspaceResizePro() {
         inspector?.style.removeProperty('overflow')
         inspector?.style.removeProperty('opacity')
         inspector?.style.removeProperty('pointer-events')
-        toolbar?.classList.add('is-hidden')
+        if (toolbar) toolbar.style.display = 'none'
         return
       }
 
-      toolbar?.classList.remove('is-hidden')
+      if (toolbar) toolbar.style.display = 'flex'
       const libraryWidth = focus.libraryCollapsed ? 0 : sizes.library
       const inspectorWidth = focus.inspectorCollapsed ? 0 : sizes.inspector
       section.style.setProperty('grid-template-columns', `${libraryWidth}px minmax(560px, 1fr) ${inspectorWidth}px`, 'important')
