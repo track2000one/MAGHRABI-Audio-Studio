@@ -9,16 +9,26 @@ import {
   Sparkles,
   WandSparkles,
 } from 'lucide-react'
+import type { CreativeTab } from './lib/creativeProjectSettings'
 
-const tabs = [
+type LinkTab = { label: string; href: string; icon: typeof Film; creative?: never }
+type CreativeNavTab = { label: string; icon: typeof Film; creative: CreativeTab; href?: never }
+
+type NavTab = LinkTab | CreativeNavTab
+
+const tabs: NavTab[] = [
   { label: 'MEDIA', href: '#video', icon: Film },
   { label: 'AUDIO', href: '#audio', icon: Music2 },
-  { label: 'TITLES', href: '#video', icon: Captions },
-  { label: 'TRANSITIONS', href: '#video-v4', icon: Layers3 },
-  { label: 'EFFECTS', href: '#color', icon: Sparkles },
+  { label: 'TITLES', creative: 'titles', icon: Captions },
+  { label: 'TRANSITIONS', creative: 'transitions', icon: Layers3 },
+  { label: 'EFFECTS', creative: 'looks', icon: Sparkles },
   { label: 'ELEMENTS', href: '#video-v5', icon: Images },
   { label: 'SPLIT SCREEN', href: '#video-v5', icon: Grid2X2 },
 ]
+
+function openCreative(tab: CreativeTab) {
+  window.dispatchEvent(new CustomEvent('maghrabi-open-creative-suite', { detail: { tab } }))
+}
 
 export default function StudioWorkspaceNav() {
   return (
@@ -32,12 +42,23 @@ export default function StudioWorkspaceNav() {
       </div>
 
       <nav className="maghrabi-creator-tabs" aria-label="Creator workspace">
-        {tabs.map(({ label, href, icon: Icon }) => (
-          <a key={label} href={href} className={`maghrabi-creator-tab${label === 'MEDIA' ? ' is-active' : ''}`}>
-            <Icon size={16} />
-            <span>{label}</span>
-          </a>
-        ))}
+        {tabs.map((tab) => {
+          const Icon = tab.icon
+          if ('creative' in tab && tab.creative) {
+            return (
+              <button key={tab.label} type="button" className="maghrabi-creator-tab" onClick={() => openCreative(tab.creative)}>
+                <Icon size={16} />
+                <span>{tab.label}</span>
+              </button>
+            )
+          }
+          return (
+            <a key={tab.label} href={tab.href} className={`maghrabi-creator-tab${tab.label === 'MEDIA' ? ' is-active' : ''}`}>
+              <Icon size={16} />
+              <span>{tab.label}</span>
+            </a>
+          )
+        })}
       </nav>
 
       <a href="#deliver" className="maghrabi-creator-export">
