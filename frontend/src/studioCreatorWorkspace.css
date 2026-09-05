@@ -1,0 +1,228 @@
+.maghrabi-creator-nav {
+  position: sticky;
+  top: 0;
+  z-index: 82;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 58px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--studio-border-soft);
+  background: color-mix(in srgb, var(--studio-panel) 94%, transparent);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .24);
+  backdrop-filter: blur(18px);
+}
+
+.maghrabi-creator-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 190px;
+  color: var(--studio-text);
+}
+
+.maghrabi-creator-brand-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--studio-cyan) 34%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--studio-cyan) 11%, transparent);
+  color: var(--studio-cyan);
+}
+
+.maghrabi-creator-brand strong,
+.maghrabi-creator-brand small {
+  display: block;
+}
+
+.maghrabi-creator-brand strong {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .13em;
+}
+
+.maghrabi-creator-brand small {
+  margin-top: 2px;
+  color: var(--studio-text-dim);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.maghrabi-creator-tabs {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.maghrabi-creator-tabs::-webkit-scrollbar { display: none; }
+
+.maghrabi-creator-tab {
+  position: relative;
+  display: flex;
+  min-width: 76px;
+  height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid transparent !important;
+  border-radius: 10px;
+  color: var(--studio-text-muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-decoration: none;
+}
+
+.maghrabi-creator-tab:hover,
+.maghrabi-creator-tab.is-active {
+  color: var(--studio-text) !important;
+  background: color-mix(in srgb, var(--studio-cyan) 9%, transparent);
+}
+
+.maghrabi-creator-tab.is-active::after {
+  content: '';
+  position: absolute;
+  right: 11px;
+  bottom: -1px;
+  left: 11px;
+  height: 2px;
+  border-radius: 99px;
+  background: var(--studio-cyan);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--studio-cyan) 60%, transparent);
+}
+
+.maghrabi-creator-export {
+  display: flex;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 18px;
+  border: 1px solid color-mix(in srgb, var(--studio-cyan) 60%, transparent) !important;
+  border-radius: 12px;
+  background: var(--studio-cyan) !important;
+  color: #062225 !important;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-decoration: none;
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--studio-cyan) 18%, transparent);
+}
+
+.maghrabi-studio-pro main > div {
+  max-width: none !important;
+  padding-right: 10px !important;
+  padding-left: 10px !important;
+}
+
+.maghrabi-studio-pro main > div > header {
+  min-height: 54px;
+  padding: 7px 4px 9px;
+}
+
+@media (min-width: 1360px) {
+  .maghrabi-studio-pro main > div > section {
+    display: grid !important;
+    grid-template-columns: minmax(290px, 340px) minmax(650px, 1fr) minmax(280px, 320px) !important;
+    grid-template-areas:
+      'library preview inspector'
+      'timeline timeline timeline' !important;
+    align-items: start;
+    gap: 10px !important;
+    direction: ltr;
+  }
+
+  .maghrabi-studio-pro main > div > section > aside:first-child {
+    grid-area: library;
+    min-width: 0;
+    max-height: 510px;
+    overflow: auto;
+    padding-right: 2px;
+    direction: ltr;
+  }
+
+  .maghrabi-studio-pro main > div > section > div:nth-child(2) {
+    display: contents !important;
+  }
+
+  .maghrabi-studio-pro main > div > section > div:nth-child(2) > div:first-child {
+    grid-area: preview;
+    display: grid !important;
+    grid-template-columns: minmax(250px, .64fr) minmax(480px, 1.36fr) !important;
+    align-items: start;
+    gap: 10px !important;
+    direction: ltr;
+  }
+
+  .maghrabi-studio-pro main > div > section > div:nth-child(2) > div:first-child > div:first-child {
+    min-width: 0;
+  }
+
+  .maghrabi-studio-pro main > div > section > div:nth-child(2) > div:first-child > div:nth-child(2) {
+    min-width: 0;
+  }
+
+  .maghrabi-studio-pro main > div > section > div:nth-child(2) > div:nth-child(2) {
+    grid-area: timeline;
+    min-width: 0;
+    margin-top: 0 !important;
+    padding: 10px !important;
+    border-radius: 16px !important;
+  }
+
+  .maghrabi-studio-pro main > div > section > aside:last-child {
+    grid-area: inspector;
+    min-width: 0;
+    max-height: 510px;
+    overflow: auto;
+    padding-left: 2px;
+    direction: ltr;
+  }
+
+  .maghrabi-studio-pro main > div > section > aside:first-child > div,
+  .maghrabi-studio-pro main > div > section > aside:last-child > div,
+  .maghrabi-studio-pro main > div > section > div:nth-child(2) > div:first-child > div {
+    border-radius: 16px !important;
+  }
+
+  .maghrabi-studio-pro main > div > section > div:nth-child(2) > div:first-child > div:nth-child(2) .aspect-video {
+    min-height: 370px;
+  }
+
+  .maghrabi-studio-pro main > div > section > div:nth-child(2) > div:first-child > div:first-child .aspect-video {
+    min-height: 270px;
+  }
+}
+
+@media (min-width: 1680px) {
+  .maghrabi-studio-pro main > div > section {
+    grid-template-columns: 360px minmax(820px, 1fr) 340px !important;
+  }
+
+  .maghrabi-studio-pro main > div > section > aside:first-child,
+  .maghrabi-studio-pro main > div > section > aside:last-child {
+    max-height: 560px;
+  }
+
+  .maghrabi-studio-pro main > div > section > div:nth-child(2) > div:first-child > div:nth-child(2) .aspect-video {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 920px) {
+  .maghrabi-creator-nav {
+    grid-template-columns: 1fr auto;
+  }
+
+  .maghrabi-creator-brand { display: none; }
+  .maghrabi-creator-tab { min-width: 64px; font-size: 8px; }
+  .maghrabi-creator-export { padding: 0 11px; }
+}
