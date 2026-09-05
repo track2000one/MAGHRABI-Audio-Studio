@@ -13,10 +13,11 @@ import {
 } from 'lucide-react'
 import type { CreativeTab } from './lib/creativeProjectSettings'
 
-type LinkTab = { label: string; href: string; icon: typeof Film; creative?: never }
-type CreativeNavTab = { label: string; icon: typeof Film; creative: CreativeTab; href?: never }
+type LinkTab = { label: string; href: string; icon: typeof Film; creative?: never; mixer?: never }
+type CreativeNavTab = { label: string; icon: typeof Film; creative: CreativeTab; href?: never; mixer?: never }
+type MixerNavTab = { label: string; icon: typeof Film; mixer: true; href?: never; creative?: never }
 
-type NavTab = LinkTab | CreativeNavTab
+type NavTab = LinkTab | CreativeNavTab | MixerNavTab
 
 const tabs: NavTab[] = [
   { label: 'MEDIA', href: '#video', icon: Film },
@@ -25,13 +26,17 @@ const tabs: NavTab[] = [
   { label: 'TRANSITIONS', creative: 'transitions', icon: Layers3 },
   { label: 'EFFECTS', creative: 'looks', icon: Sparkles },
   { label: 'SPEED', creative: 'speed', icon: Gauge },
-  { label: 'MIX', creative: 'audio', icon: SlidersHorizontal },
+  { label: 'MIX', mixer: true, icon: SlidersHorizontal },
   { label: 'ELEMENTS', href: '#video-v5', icon: Images },
   { label: 'SPLIT SCREEN', href: '#video-v5', icon: Grid2X2 },
 ]
 
 function openCreative(tab: CreativeTab) {
   window.dispatchEvent(new CustomEvent('maghrabi-open-creative-suite', { detail: { tab } }))
+}
+
+function openMixer() {
+  window.dispatchEvent(new CustomEvent('maghrabi-open-audio-mixer'))
 }
 
 export default function StudioWorkspaceNav() {
@@ -48,6 +53,14 @@ export default function StudioWorkspaceNav() {
       <nav className="maghrabi-creator-tabs" aria-label="Creator workspace">
         {tabs.map((tab) => {
           const Icon = tab.icon
+          if ('mixer' in tab && tab.mixer) {
+            return (
+              <button key={tab.label} type="button" className="maghrabi-creator-tab" onClick={openMixer}>
+                <Icon size={16} />
+                <span>{tab.label}</span>
+              </button>
+            )
+          }
           if ('creative' in tab && tab.creative) {
             return (
               <button key={tab.label} type="button" className="maghrabi-creator-tab" onClick={() => openCreative(tab.creative)}>
