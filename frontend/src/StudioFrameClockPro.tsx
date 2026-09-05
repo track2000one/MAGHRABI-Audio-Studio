@@ -11,7 +11,7 @@ type FrameMetadataLite = {
   presentedFrames?: number
 }
 
-type FrameVideo = HTMLVideoElement & {
+type FrameApi = {
   requestVideoFrameCallback?: (callback: (now: number, metadata: FrameMetadataLite) => void) => number
   cancelVideoFrameCallback?: (handle: number) => void
 }
@@ -27,6 +27,14 @@ function clamp(value: number, min: number, max: number) {
 
 function quantize(time: number) {
   return Math.max(0, Math.round(Math.max(0, time) / FRAME) * FRAME)
+}
+
+function frameApi(video: HTMLVideoElement) {
+  return video as unknown as FrameApi
+}
+
+function hasFrameCallback(video: HTMLVideoElement) {
+  return typeof frameApi(video).requestVideoFrameCallback === 'function'
 }
 
 function parseZoom() {
@@ -67,12 +75,6 @@ function programVideo() {
   return programPanel()?.querySelector<HTMLVideoElement>('.aspect-video > video:not([controls])') || null
 }
 
-function programClockLabel() {
-  const panel = programPanel()
-  if (!panel) return null
-  return Array.from(panel.querySelectorAll<HTMLParagraphElement>('p')).find((item) => /V1\s*Program/i.test(item.textContent || '')) || null
-}
-
 function formatTimecode(seconds: number) {
   const totalFrames = Math.max(0, Math.round(Math.max(0, seconds) * FPS))
   const frames = totalFrames % FPS
@@ -82,13 +84,6 @@ function formatTimecode(seconds: number) {
   const minutes = totalMinutes % 60
   const hours = Math.floor(totalMinutes / 60)
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}:${String(frames).padStart(2, '0')}`
-}
-
-function formatProgramClock(seconds: number) {
-  const safe = Math.max(0, seconds)
-  const minutes = Math.floor(safe / 60)
-  const secs = safe - minutes * 60
-  return `${String(minutes).padStart(2, '0')}:${secs.toFixed(2).padStart(5, '0')}`
 }
 
 function v1ClipEndAt(time: number) {
@@ -119,7 +114,7 @@ export default function StudioFrameClockPro() {
 
   useEffect(() => {
     let disposed = false
-    let currentVideo: FrameVideo | null = null
+    let currentVideo: HTMLVideoElement | null = null
     let portalTarget: HTMLElement | null = null
     let frameHandle = 0
     let rafHandle = 0
@@ -140,8 +135,11 @@ export default function StudioFrameClockPro() {
     }
 
     const cancelLoop = () => {
-      if (currentVideo && frameHandle && currentVideo.cancelVideoFrameCallback) {
-        try { currentVideo.cancelVideoFrameCallback(frameHandle) } catch {}
+      if (currentVideo && frameHandle) {
+        const api = frameApi(currentVideo)
+        if (typeof api.cancelVideoFrameCallback === 'function') {
+          try { api.cancelVideoFrameCallback(frameHandle) } catch {}
+        }
       }
       if (rafHandle) window.cancelAnimationFrame(rafHandle)
       frameHandle = 0
@@ -163,8 +161,6 @@ export default function StudioFrameClockPro() {
       document.documentElement.dataset.maghrabiFrameClockSource = clockSource
       document.documentElement.dataset.maghrabiFrameClockPlaying = playing ? '1' : '0'
 
-      const clockLabel = programClockLabel()
-      if (clockLabel) clockLabel.textContent = `${formatProgramClock(time)} · V1 Program`
       if (timecodeRef.current) timecodeRef.current.textContent = formatTimecode(time)
       if (statusRef.current) statusRef.current.textContent = `FRAME CLOCK · ${clockSource} · ${FPS} FPS`
       if (frameRef.current) frameRef.current.textContent = `F${String(presentedFrames ?? frame).padStart(6, '0')}`
@@ -175,14 +171,14 @@ export default function StudioFrameClockPro() {
       return time
     }
 
-    const anchor = (video: FrameVideo, timelineOverride?: number) => {
+    const anchor = (video: HTMLVideoElement, timelineOverride?: number) => {
       anchorTimeline = quantize(timelineOverride ?? readPlayheadTime())
       anchorMedia = Math.max(0, Number.isFinite(video.currentTime) ? video.currentTime : 0)
       anchorRate = Math.max(.25, Math.abs(Number(video.playbackRate) || 1))
       anchorClipEnd = v1ClipEndAt(anchorTimeline)
     }
 
-    const timelineFromMedia = (video: FrameVideo, mediaTime: number) => {
+    const timelineFromMedia = (mediaTime: number) => {
       const rate = Math.max(.25, anchorRate)
       const elapsed = (mediaTime - anchorMedia) / rate
       const raw = anchorTimeline + elapsed
@@ -193,23 +189,25 @@ export default function StudioFrameClockPro() {
       cancelLoop()
       const video = currentVideo
       if (!video || video.paused || video.ended || suspended) return
+      const api = frameApi(video)
 
-      if (typeof video.requestVideoFrameCallback === 'function') {
+      if (typeof api.requestVideoFrameCallback === 'function') {
+        const requestFrame = api.requestVideoFrameCallback.bind(api)
         const step = (_now: number, metadata: FrameMetadataLite) => {
           frameHandle = 0
           if (disposed || currentVideo !== video || video.paused || video.ended || suspended) return
           const mediaTime = Number.isFinite(metadata.mediaTime) ? Number(metadata.mediaTime) : video.currentTime
-          writeClock(timelineFromMedia(video, mediaTime), 'RVFC', true, true, metadata.presentedFrames)
-          frameHandle = video.requestVideoFrameCallback?.(step) || 0
+          writeClock(timelineFromMedia(mediaTime), 'RVFC', true, true, metadata.presentedFrames)
+          frameHandle = requestFrame(step)
         }
-        frameHandle = video.requestVideoFrameCallback(step)
+        frameHandle = requestFrame(step)
         return
       }
 
       const step = () => {
         rafHandle = 0
         if (disposed || currentVideo !== video || video.paused || video.ended || suspended) return
-        writeClock(timelineFromMedia(video, video.currentTime), 'RAF', true)
+        writeClock(timelineFromMedia(video.currentTime), 'RAF', true)
         rafHandle = window.requestAnimationFrame(step)
       }
       rafHandle = window.requestAnimationFrame(step)
@@ -230,7 +228,7 @@ export default function StudioFrameClockPro() {
     const onPlay = () => {
       if (!currentVideo) return
       anchor(currentVideo)
-      writeClock(anchorTimeline, currentVideo.requestVideoFrameCallback ? 'RVFC' : 'RAF', true)
+      writeClock(anchorTimeline, hasFrameCallback(currentVideo) ? 'RVFC' : 'RAF', true)
       scheduleLoop()
     }
 
@@ -250,7 +248,7 @@ export default function StudioFrameClockPro() {
 
     const onRateChange = () => {
       if (!currentVideo) return
-      const current = timelineFromMedia(currentVideo, currentVideo.currentTime)
+      const current = timelineFromMedia(currentVideo.currentTime)
       anchor(currentVideo, current)
       if (!currentVideo.paused) scheduleLoop()
     }
@@ -259,7 +257,7 @@ export default function StudioFrameClockPro() {
       if (next === currentVideo) return
       detachVideo()
       if (!next) return
-      currentVideo = next as FrameVideo
+      currentVideo = next
       currentVideo.addEventListener('play', onPlay)
       currentVideo.addEventListener('pause', onPause)
       currentVideo.addEventListener('ended', onPause)
