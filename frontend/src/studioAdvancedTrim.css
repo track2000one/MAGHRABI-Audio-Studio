@@ -1,0 +1,112 @@
+body.maghrabi-advanced-trimming,
+body.maghrabi-advanced-trimming * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.maghrabi-advanced-trim-badge {
+  position: fixed;
+  z-index: 9999;
+  min-width: 166px;
+  border: 1px solid rgba(103, 232, 249, .34);
+  border-radius: 11px;
+  padding: 7px 9px;
+  background: rgba(5, 12, 24, .97);
+  color: #e8f8ff;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .42), 0 0 18px rgba(34, 211, 238, .08);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+.maghrabi-advanced-trim-badge.is-ripple {
+  border-color: rgba(52, 211, 153, .42);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .42), 0 0 20px rgba(52, 211, 153, .10);
+}
+
+.maghrabi-advanced-trim-badge.is-rolling {
+  border-color: rgba(167, 139, 250, .46);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .42), 0 0 20px rgba(139, 92, 246, .12);
+}
+
+.maghrabi-advanced-trim-badge strong,
+.maghrabi-advanced-trim-badge span {
+  display: block;
+}
+
+.maghrabi-advanced-trim-badge strong {
+  color: #a5f3fc;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: .09em;
+}
+
+.maghrabi-advanced-trim-badge.is-ripple strong {
+  color: #a7f3d0;
+}
+
+.maghrabi-advanced-trim-badge.is-rolling strong {
+  color: #ddd6fe;
+}
+
+.maghrabi-advanced-trim-badge span {
+  margin-top: 3px;
+  color: #9fb1c8;
+  font-size: 8px;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+}
+
+.maghrabi-studio-pro .maghrabi-trim-handle[title*="Ripple Trim"]::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  width: 1px;
+  opacity: 0;
+  background: rgba(167, 243, 208, .92);
+  box-shadow: 0 0 8px rgba(52, 211, 153, .38);
+  transition: opacity 80ms ease;
+  pointer-events: none;
+}
+
+.maghrabi-studio-pro .maghrabi-trim-handle.is-in[title*="Ripple Trim"]::after {
+  left: 7px;
+}
+
+.maghrabi-studio-pro .maghrabi-trim-handle.is-out[title*="Ripple Trim"]::after {
+  right: 7px;
+}
+
+.maghrabi-studio-pro .maghrabi-trim-handle:hover::after,
+.maghrabi-studio-pro .maghrabi-trim-handle.is-active::after {
+  opacity: 1;
+}
+
+.maghrabi-advanced-trim-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 184px;
+  z-index: 147;
+  max-width: min(580px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  border: 1px solid rgba(167, 139, 250, .28);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: rgba(12, 10, 26, .96);
+  color: #ede9fe;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .38), 0 0 18px rgba(139, 92, 246, .08);
+  font-size: 9px;
+  font-weight: 900;
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .maghrabi-advanced-trim-badge {
+    min-width: 142px;
+  }
+
+  .maghrabi-advanced-trim-toast {
+    bottom: 150px;
+  }
+}
