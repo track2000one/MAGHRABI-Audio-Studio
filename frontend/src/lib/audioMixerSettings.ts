@@ -110,13 +110,29 @@ export function linearToDb(value: number) {
   return clamp(20 * Math.log10(value), -60, 24)
 }
 
+function normalizeTimelineAutomationForRender(manifest: VideoProjectManifestV12): VideoProjectManifestV12 {
+  const audioTracks = (manifest.audioTracks || []).map((track) => {
+    const duration = Math.max(.001, Number(track.sourceEnd) - Number(track.sourceStart))
+    const automation = Array.isArray(track.automation)
+      ? track.automation.map((point) => ({
+          ...point,
+          time: clamp(Number(point.time) / duration, 0, 1),
+          gain: clamp(Number(point.gain), 0, 2),
+        }))
+      : track.automation
+    return { ...track, automation }
+  })
+  return { ...manifest, audioTracks }
+}
+
 export function applyAudioMixerMasterToManifest(
   manifest: VideoProjectManifestV12,
   settings: AudioMixerSettings,
 ): VideoProjectManifestV12 {
   const safe = sanitizeAudioMixerSettings(settings)
+  const renderReady = normalizeTimelineAutomationForRender(manifest)
   return {
-    ...manifest,
+    ...renderReady,
     audioMasterGain: dbToLinear(safe.master.gainDb),
     audioLimiterEnabled: safe.master.limiterEnabled,
     audioLimiterCeilingDb: safe.master.limiterCeilingDb,
