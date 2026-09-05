@@ -121,7 +121,20 @@ jobs:
               {"text":"PROFESSIONAL EDITOR SMOKE","startAt":0.25,"endAt":2.55,"size":28,"position":"bottom","color":"#ffffff","boxOpacity":0.45}
             ],
             "audioTracks": [
-              {"fileIndex":0,"startAt":0.0,"sourceStart":0.0,"sourceEnd":3.0,"volume":0.25,"fadeIn":0.18,"fadeOut":0.22}
+              {
+                "fileIndex":0,
+                "startAt":0.0,
+                "sourceStart":0.0,
+                "sourceEnd":3.0,
+                "volume":0.25,
+                "fadeIn":0.18,
+                "fadeOut":0.22,
+                "automation":[{"time":0.0,"gain":0.75},{"time":0.5,"gain":1.0},{"time":1.0,"gain":0.7}],
+                "mixerGain":0.85,
+                "pan":-0.35,
+                "muted":false,
+                "solo":true
+              }
             ],
             "imageTracks": [],
             "videoOverlays": [],
@@ -129,7 +142,12 @@ jobs:
             "transitionDuration": 0.30,
             "audioDuckingEnabled": true,
             "duckingStrength": 0.55,
-            "magneticSnap": true
+            "magneticSnap": true,
+            "audioMasterGain": 0.90,
+            "audioLimiterEnabled": true,
+            "audioLimiterCeilingDb": -1.0,
+            "audioNormalizeEnabled": true,
+            "audioTargetLufs": -16.0
           }
           JSON
           curl -fsS -b creator-smoke/cookies.txt \
@@ -139,7 +157,7 @@ jobs:
             -F 'manifest=<creator-smoke/manifest.json' \
             -F 'output_size=720p' \
             -F 'quality=draft' \
-            -F 'name=Creator E2E Creative Smoke' \
+            -F 'name=Creator E2E Creative Mixer Smoke' \
             http://127.0.0.1:18002/api/video/v12/queue > creator-smoke/enqueue.json
           python - <<'PY'
           import json
@@ -176,7 +194,7 @@ jobs:
           test -s creator-smoke/result.mp4
           IMAGE="maghrabi-creator-smoke:${GITHUB_SHA}"
           docker run --rm -v "$PWD/creator-smoke:/work" --entrypoint ffprobe "$IMAGE" \
-            -v error -show_entries format=duration -show_entries stream=codec_type,codec_name,width,height \
+            -v error -show_entries format=duration -show_entries stream=codec_type,codec_name,width,height,channels,sample_rate \
             -of json /work/result.mp4 > creator-smoke/ffprobe.json
           python - <<'PY'
           import json
@@ -187,8 +205,11 @@ jobs:
           assert any(s.get('codec_type')=='video' and s.get('codec_name')=='h264' for s in streams), streams
           assert any(s.get('codec_type')=='audio' for s in streams), streams
           video=next(s for s in streams if s.get('codec_type')=='video')
+          audio=next(s for s in streams if s.get('codec_type')=='audio')
           assert video.get('width')==1280 and video.get('height')==720, video
-          print('creative-render-ok', duration, streams)
+          assert int(audio.get('sample_rate', 0))==48000, audio
+          assert int(audio.get('channels', 0))==2, audio
+          print('creative-mixer-render-ok', duration, streams)
           PY
 
       - name: Save creator smoke evidence
