@@ -20,6 +20,12 @@ export type CreativeLookId =
   | 'steel-blue'
   | 'noir'
   | 'documentary'
+  | 'commercial-crisp'
+  | 'desert-luxe'
+  | 'emerald-film'
+  | 'rose-cinema'
+  | 'moody-drama'
+  | 'sports-punch'
 
 export type CreativeTitle = {
   id: string
@@ -74,6 +80,12 @@ export const CREATIVE_LOOKS: CreativeLookPreset[] = [
   { id: 'steel-blue', name: 'Steel Blue', description: 'طابع بارد راقٍ للمقابلات والتقنية', filter: 'cool', brightness: -.03, contrast: 1.20, saturation: .88, temperature: -.28, vignette: .22, swatches: ['#12202e', '#47708d', '#b3c7d2'] },
   { id: 'noir', name: 'Noir', description: 'أبيض وأسود بتباين سينمائي', filter: 'mono', brightness: -.04, contrast: 1.35, saturation: 0, temperature: 0, vignette: .40, swatches: ['#050505', '#666666', '#e4e4e4'] },
   { id: 'documentary', name: 'Documentary', description: 'توازن طبيعي وتباين واقعي', filter: 'none', brightness: .01, contrast: 1.10, saturation: .95, temperature: 0, vignette: .08, swatches: ['#253039', '#7d8e8c', '#d8ddd8'] },
+  { id: 'commercial-crisp', name: 'Commercial Crisp', description: 'حدة وتباين إعلاني نظيف للمنتجات والمحتوى التجاري', filter: 'vivid', brightness: .02, contrast: 1.14, saturation: 1.08, temperature: 0, vignette: .05, swatches: ['#0b1524', '#42b8d5', '#f8fbff'] },
+  { id: 'desert-luxe', name: 'Desert Luxe', description: 'دفء فاخر للمشاهد الصحراوية والذهبية', filter: 'warm', brightness: .03, contrast: 1.10, saturation: 1.05, temperature: .24, vignette: .18, swatches: ['#4e2718', '#c8803d', '#f1c98a'] },
+  { id: 'emerald-film', name: 'Emerald Film', description: 'أخضر مزرق هادئ بطابع فيلم حديث', filter: 'cool', brightness: -.02, contrast: 1.16, saturation: .93, temperature: -.06, vignette: .28, swatches: ['#092725', '#367d72', '#c7d8c7'] },
+  { id: 'rose-cinema', name: 'Rose Cinema', description: 'دفء وردي ناعم للمقابلات والبورتريه', filter: 'warm', brightness: .03, contrast: 1.05, saturation: .90, temperature: .10, vignette: .16, swatches: ['#43272e', '#b16f76', '#efd0c8'] },
+  { id: 'moody-drama', name: 'Moody Drama', description: 'ظلال أعمق وتباين درامي للمشاهد القصصية', filter: 'cinematic', brightness: -.06, contrast: 1.25, saturation: .80, temperature: -.10, vignette: .42, swatches: ['#070a10', '#26323e', '#8b6e5a'] },
+  { id: 'sports-punch', name: 'Sports Punch', description: 'ألوان قوية وحيوية للحركة والرياضة', filter: 'vivid', brightness: -.01, contrast: 1.22, saturation: 1.28, temperature: .02, vignette: .14, swatches: ['#071e31', '#00a8d6', '#f6be24'] },
 ]
 
 export const CREATIVE_TRANSITIONS: Array<{ value: VideoTransition; name: string; family: string }> = [
