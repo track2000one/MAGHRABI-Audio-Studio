@@ -5,9 +5,12 @@ import StudioPrecisionEditPro from './StudioPrecisionEditPro'
 import StudioProjectStatus from './StudioProjectStatus'
 import StudioThemeSelector, { getInitialStudioTheme, STUDIO_THEME_STORAGE_KEY, type StudioThemeId } from './StudioThemeSelector'
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
+import StudioWorkspaceNav from './StudioWorkspaceNav'
 import VideoStudioCreator from './VideoStudioCreator'
 import './studioProContrast.css'
 import './studioThemes.css'
+import './studioCreatorTeal.css'
+import './studioCreatorWorkspace.css'
 
 export default function StudioProApp() {
   const [theme, setTheme] = useState<StudioThemeId>(() => getInitialStudioTheme())
@@ -19,6 +22,7 @@ export default function StudioProApp() {
 
   return (
     <div className="maghrabi-studio-pro min-h-screen" data-studio-theme={theme}>
+      <StudioWorkspaceNav />
       <VideoStudioCreator />
       <StudioTimelineEnhancer />
       <StudioEditingCorePro />
