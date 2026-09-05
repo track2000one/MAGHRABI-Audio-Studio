@@ -1,0 +1,38 @@
+.maghrabi-workspace-resizer {
+  position: absolute;
+  top: 0;
+  z-index: 72;
+  width: 8px;
+  min-height: 360px;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.maghrabi-workspace-resizer::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 3px;
+  width: 2px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--studio-border) 42%, transparent);
+  opacity: .28;
+  transition: opacity .14s ease, background .14s ease, box-shadow .14s ease;
+}
+
+.maghrabi-workspace-resizer:hover::after,
+.maghrabi-workspace-resizer.is-dragging::after {
+  background: var(--studio-cyan);
+  opacity: .92;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--studio-cyan) 54%, transparent);
+}
+
+.maghrabi-workspace-resizer.is-hidden { display: none; }
+
+html.maghrabi-workspace-resizing,
+html.maghrabi-workspace-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
