@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import FileResponse
 
 from .main import require_auth
+from .video_tools_audio_mixer import render_with_audio_mixer
 from .video_tools_v9 import render_video_v9
 
 router = APIRouter(prefix="/api/video/v10", tags=["video-studio-v10"])
@@ -22,10 +23,11 @@ async def render_video_v10(
     quality: Literal["draft", "standard", "high"] = Form("standard"),
     _username: str = Depends(require_auth),
 ) -> FileResponse:
-    """Creator V10 flattens nested sequences, multicam cuts, adjustment layers,
-    and mixer buses into the proven V9 timeline manifest before render.
+    """Creator V10 applies professional mixer buses, then delegates the
+    timeline render to the proven V9 FFmpeg engine.
     """
-    response = await render_video_v9(
+    response = await render_with_audio_mixer(
+        render_video_v9,
         video_files=video_files,
         audio_files=audio_files,
         image_files=image_files,
@@ -33,8 +35,8 @@ async def render_video_v10(
         manifest=manifest,
         output_size=output_size,
         quality=quality,
-        _username=_username,
+        username=_username,
     )
-    response.headers["X-MAGHRABI-Engine"] = "Creator-V10"
+    response.headers["X-MAGHRABI-Engine"] = "Creator-V10-AudioMixer"
     response.headers["Content-Disposition"] = 'attachment; filename="MAGHRABI-video-v10.mp4"'
     return response
