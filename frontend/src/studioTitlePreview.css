@@ -1,0 +1,42 @@
+.maghrabi-title-preview-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 26;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.maghrabi-title-preview {
+  position: absolute;
+  right: 5%;
+  left: 5%;
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+
+.maghrabi-title-preview.is-top { top: 7%; align-items: flex-start; }
+.maghrabi-title-preview.is-center { top: 50%; transform: translateY(-50%); align-items: center; }
+.maghrabi-title-preview.is-bottom { bottom: 8%; align-items: flex-end; }
+
+.maghrabi-title-preview span {
+  display: inline-block;
+  max-width: 92%;
+  padding: .14em .34em;
+  border-radius: .18em;
+  font-weight: 800;
+  line-height: 1.18;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-shadow: 0 2px 5px rgba(0,0,0,.7);
+  box-shadow: 0 4px 14px rgba(0,0,0,.12);
+}
+
+.maghrabi-title-preview.is-title span {
+  font-weight: 900;
+  letter-spacing: -.02em;
+}
+
+.maghrabi-title-preview.is-subtitle span {
+  font-weight: 750;
+}
