@@ -82,6 +82,41 @@ class TranscriptIntelligenceTests(unittest.TestCase):
         self.assertEqual(len(result["subtitleTracks"]), 1)
         self.assertEqual(result["subtitleTracks"][0]["text"], "keep")
 
+    def test_selected_translation_replaces_source_caption_text(self) -> None:
+        project = {
+            "audioTracks": [{
+                "dialogueTranscript": {
+                    "id": "tr-multi",
+                    "language": "en",
+                    "captionsEnabled": True,
+                    "captionLanguage": "es",
+                    "captionPreset": "cinema",
+                    "captionSize": 36,
+                    "captionPosition": "bottom",
+                    "captionColor": "#ffffff",
+                    "captionBoxOpacity": 0.35,
+                    "words": [
+                        {"text": "Hello", "timelineStart": 0.0, "timelineEnd": 0.4},
+                        {"text": "world.", "timelineStart": 0.4, "timelineEnd": 0.9},
+                    ],
+                    "captionTranslations": {
+                        "es": {
+                            "language": "es",
+                            "cues": [
+                                {"id": "c1", "start": 0.0, "end": 0.9, "text": "Hola mundo."}
+                            ],
+                        }
+                    },
+                }
+            }]
+        }
+        result = inject_transcript_subtitles(project)
+        captions = result["subtitleTracks"]
+        self.assertEqual(len(captions), 1)
+        self.assertEqual(captions[0]["text"], "Hola mundo.")
+        self.assertEqual(captions[0]["captionLanguage"], "es")
+        self.assertEqual(captions[0]["captionPreset"], "cinema")
+
 
 if __name__ == "__main__":
     unittest.main()
