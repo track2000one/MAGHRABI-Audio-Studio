@@ -207,6 +207,36 @@ def _caption_groups(words: list[dict], document: dict) -> list[dict]:
     return groups
 
 
+def _translated_caption_groups(document: dict) -> tuple[str, list[dict]] | None:
+    language = str(document.get("captionLanguage") or "source").strip()
+    if not language or language == "source":
+        return None
+    translations = document.get("captionTranslations")
+    if not isinstance(translations, dict):
+        return None
+    pack = translations.get(language)
+    if not isinstance(pack, dict):
+        return None
+    raw_cues = pack.get("cues")
+    if not isinstance(raw_cues, list):
+        return None
+
+    groups: list[dict] = []
+    for item in raw_cues:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text") or "").strip()
+        if not text:
+            continue
+        start = max(0.0, _number(item.get("start"), 0.0))
+        end = max(start + .12, _number(item.get("end"), start + .12))
+        groups.append({"text": text[:700], "startAt": start, "endAt": end})
+    if not groups:
+        return None
+    groups.sort(key=lambda item: (item["startAt"], item["endAt"]))
+    return language, groups
+
+
 def inject_transcript_subtitles(project: dict[str, Any]) -> dict[str, Any]:
     tracks = project.get("audioTracks")
     if not isinstance(tracks, list):
@@ -228,17 +258,25 @@ def inject_transcript_subtitles(project: dict[str, Any]) -> dict[str, Any]:
         if document_id:
             seen_documents.add(document_id)
 
-        words = _normalized_words(document)
-        if not words:
-            continue
+        selected_translation = _translated_caption_groups(document)
+        if selected_translation is not None:
+            caption_language, groups = selected_translation
+        else:
+            words = _normalized_words(document)
+            if not words:
+                continue
+            caption_language = str(document.get("language") or "source").strip() or "source"
+            groups = _caption_groups(words, document)
+
         size = max(18, min(84, int(_number(document.get("captionSize"), 38))))
         position = str(document.get("captionPosition") or "bottom").strip().lower()
         if position not in {"top", "center", "bottom"}:
             position = "bottom"
         color = _hex(document.get("captionColor"), "#ffffff")
         opacity = max(0.0, min(1.0, _number(document.get("captionBoxOpacity"), .48)))
+        preset = str(document.get("captionPreset") or "broadcast").strip()[:32]
 
-        for group in _caption_groups(words, document):
+        for group in groups:
             subtitle_tracks.append({
                 "text": group["text"][:700],
                 "startAt": round(group["startAt"], 4),
@@ -249,6 +287,8 @@ def inject_transcript_subtitles(project: dict[str, Any]) -> dict[str, Any]:
                 "boxOpacity": opacity,
                 "source": "dialogue-transcript",
                 "transcriptId": document_id or None,
+                "captionLanguage": caption_language,
+                "captionPreset": preset,
             })
 
     project["subtitleTracks"] = subtitle_tracks
