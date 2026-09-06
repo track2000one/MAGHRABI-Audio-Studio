@@ -62,7 +62,7 @@ jobs:
           test "$READY" = "1"
           grep -q '"status":"ok"' creator-smoke/health.json
 
-      - name: Authenticate and enqueue professional creative render
+      - name: Authenticate and enqueue professional dialogue render
         run: |
           set -euo pipefail
           curl -fsS -c creator-smoke/cookies.txt \
@@ -133,7 +133,19 @@ jobs:
                 "mixerGain":0.85,
                 "pan":-0.35,
                 "muted":false,
-                "solo":true
+                "solo":true,
+                "dialogueCleanupEnabled":true,
+                "dialogueTempo":1.04,
+                "dialogueNoiseReductionDb":6.0,
+                "dialogueHighPassHz":80.0,
+                "dialogueDeEss":0.30,
+                "dialogueCompressorEnabled":true,
+                "dialogueCompressorThresholdDb":-18.0,
+                "dialogueCompressorRatio":3.0,
+                "dialogueLoudnessMatchEnabled":true,
+                "dialogueTargetLufs":-18.0,
+                "dialogueRoomToneDb":-50.0,
+                "dialogueRoomToneAnchor":"tail"
               }
             ],
             "imageTracks": [],
@@ -157,7 +169,7 @@ jobs:
             -F 'manifest=<creator-smoke/manifest.json' \
             -F 'output_size=720p' \
             -F 'quality=draft' \
-            -F 'name=Creator E2E Creative Mixer Smoke' \
+            -F 'name=Creator E2E Dialogue Cleanup Smoke' \
             http://127.0.0.1:18002/api/video/v12/queue > creator-smoke/enqueue.json
           python - <<'PY'
           import json
@@ -209,7 +221,7 @@ jobs:
           assert video.get('width')==1280 and video.get('height')==720, video
           assert int(audio.get('sample_rate', 0))==48000, audio
           assert int(audio.get('channels', 0))==2, audio
-          print('creative-mixer-render-ok', duration, streams)
+          print('dialogue-cleanup-render-ok', duration, streams)
           PY
 
       - name: Save creator smoke evidence
