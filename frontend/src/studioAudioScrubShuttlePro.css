@@ -1,0 +1,178 @@
+.maghrabi-audio-shuttle-panel {
+  margin-top: 10px;
+  padding: 9px;
+  border: 1px solid rgba(148, 163, 184, .14);
+  border-radius: 13px;
+  background: linear-gradient(180deg, rgba(7, 15, 28, .9), rgba(3, 9, 18, .94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035), 0 10px 24px rgba(0, 0, 0, .18);
+}
+
+.maghrabi-audio-shuttle-head,
+.maghrabi-audio-shuttle-controls {
+  display: flex;
+  align-items: center;
+}
+
+.maghrabi-audio-shuttle-head {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.maghrabi-audio-shuttle-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgb(148, 163, 184);
+  font-size: 7px;
+  font-weight: 950;
+  letter-spacing: .11em;
+}
+
+.maghrabi-audio-scrub-toggle {
+  padding: 4px 7px;
+  border: 1px solid rgba(148, 163, 184, .14);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, .06);
+  color: rgb(100, 116, 139);
+  font-size: 6px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  transition: .15s ease;
+}
+
+.maghrabi-audio-scrub-toggle.is-on {
+  border-color: rgba(34, 211, 238, .26);
+  background: rgba(34, 211, 238, .09);
+  color: rgb(103, 232, 249);
+  box-shadow: 0 0 14px rgba(34, 211, 238, .06);
+}
+
+.maghrabi-audio-shuttle-controls {
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.maghrabi-audio-shuttle-controls > button {
+  display: inline-flex;
+  min-height: 31px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid rgba(148, 163, 184, .14);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .025);
+  color: rgb(203, 213, 225);
+  font-size: 7px;
+  font-weight: 950;
+  transition: border-color .14s ease, background .14s ease, color .14s ease, transform .14s ease;
+}
+
+.maghrabi-audio-shuttle-controls > button:hover {
+  border-color: rgba(34, 211, 238, .28);
+  background: rgba(34, 211, 238, .07);
+  color: rgb(207, 250, 254);
+}
+
+.maghrabi-audio-shuttle-controls > button:active {
+  transform: translateY(1px);
+}
+
+.maghrabi-audio-shuttle-controls > button.is-stop {
+  color: rgb(148, 163, 184);
+}
+
+.maghrabi-audio-shuttle-speed {
+  display: inline-flex;
+  min-width: 55px;
+  min-height: 31px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid rgba(148, 163, 184, .12);
+  border-radius: 9px;
+  background: rgba(2, 6, 14, .58);
+  color: rgb(100, 116, 139);
+}
+
+.maghrabi-audio-shuttle-speed strong {
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: -.02em;
+}
+
+.maghrabi-audio-shuttle-speed small {
+  font-size: 5px;
+  font-weight: 950;
+  letter-spacing: .08em;
+}
+
+.maghrabi-audio-shuttle-speed.is-active {
+  border-color: rgba(34, 211, 238, .24);
+  background: rgba(34, 211, 238, .07);
+  color: rgb(103, 232, 249);
+}
+
+.maghrabi-audio-shuttle-speed.is-active.is-reverse {
+  border-color: rgba(167, 139, 250, .24);
+  background: rgba(139, 92, 246, .08);
+  color: rgb(196, 181, 253);
+}
+
+.maghrabi-audio-shuttle-controls > button.maghrabi-audio-preview-edit {
+  margin-left: auto;
+  padding-inline: 10px;
+}
+
+.maghrabi-audio-preview-edit small {
+  padding-left: 3px;
+  color: rgb(100, 116, 139);
+  font-size: 5px;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+
+.maghrabi-audio-shuttle-controls > button.maghrabi-audio-preview-edit.is-live {
+  border-color: rgba(34, 211, 238, .32);
+  background: rgba(34, 211, 238, .1);
+  color: rgb(207, 250, 254);
+  box-shadow: 0 0 16px rgba(34, 211, 238, .07);
+}
+
+.maghrabi-audio-shuttle-foot {
+  margin-top: 7px;
+  color: rgb(71, 85, 105);
+  font-size: 5px;
+  font-weight: 850;
+  letter-spacing: .055em;
+  text-align: center;
+}
+
+html[data-maghrabi-audio-scrub='on'] .maghrabi-playhead--dragging {
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, .28));
+}
+
+html[data-maghrabi-shuttle-rate^='-'] .maghrabi-playhead {
+  filter: drop-shadow(0 0 6px rgba(167, 139, 250, .34));
+}
+
+html[data-maghrabi-shuttle-rate='2'] .maghrabi-playhead,
+html[data-maghrabi-shuttle-rate='4'] .maghrabi-playhead,
+html[data-maghrabi-shuttle-rate='8'] .maghrabi-playhead {
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, .34));
+}
+
+@media (max-width: 980px) {
+  .maghrabi-audio-shuttle-controls {
+    flex-wrap: wrap;
+  }
+
+  .maghrabi-audio-shuttle-controls > button.maghrabi-audio-preview-edit {
+    margin-left: 0;
+  }
+
+  .maghrabi-audio-shuttle-foot {
+    text-align: left;
+  }
+}
