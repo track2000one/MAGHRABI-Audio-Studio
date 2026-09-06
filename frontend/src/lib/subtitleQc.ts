@@ -175,24 +175,23 @@ export function buildManualSourceCaptionGroups(document: TranscriptDocument): Ca
   const manual = Array.isArray(document.captionManualCues) ? document.captionManualCues : []
   if (!manual.length) return null
   const wordMap = new Map(cleanWords(document).map((word) => [word.id, word]))
-  const groups = manual
-    .map((cue) => {
-      const words = (cue.wordIds || []).map((id) => wordMap.get(id)).filter((word): word is TranscriptWord => Boolean(word))
-      const text = words.length ? words.map((word) => word.text).join(' ') : cue.text.trim()
-      if (!text) return null
-      return {
-        ...cue,
-        start: quantizeSubtitleTime(cue.start),
-        end: Math.max(quantizeSubtitleTime(cue.start) + SUBTITLE_FRAME * 2, quantizeSubtitleTime(cue.end)),
-        text,
-        speaker: words[0]?.speaker || cue.speaker || null,
-        words,
-        translated: false,
-        manual: true,
-      } satisfies CaptionGroup
+  const groups: CaptionGroup[] = []
+  for (const cue of manual) {
+    const words = (cue.wordIds || []).map((id) => wordMap.get(id)).filter((word): word is TranscriptWord => Boolean(word))
+    const text = words.length ? words.map((word) => word.text).join(' ') : cue.text.trim()
+    if (!text) continue
+    groups.push({
+      ...cue,
+      start: quantizeSubtitleTime(cue.start),
+      end: Math.max(quantizeSubtitleTime(cue.start) + SUBTITLE_FRAME * 2, quantizeSubtitleTime(cue.end)),
+      text,
+      speaker: words[0]?.speaker || cue.speaker || null,
+      words,
+      translated: false,
+      manual: true,
     })
-    .filter((cue): cue is CaptionGroup => Boolean(cue))
-    .sort((a, b) => a.start - b.start || a.end - b.end)
+  }
+  groups.sort((a, b) => a.start - b.start || a.end - b.end)
   return groups.length ? groups : null
 }
 
