@@ -91,19 +91,20 @@ class TranscriptIntelligenceTests(unittest.TestCase):
                     "captionsEnabled": True,
                     "captionLanguage": "es",
                     "captionPreset": "cinema",
+                    "captionSpeakerLabels": True,
                     "captionSize": 36,
                     "captionPosition": "bottom",
                     "captionColor": "#ffffff",
                     "captionBoxOpacity": 0.35,
                     "words": [
-                        {"text": "Hello", "timelineStart": 0.0, "timelineEnd": 0.4},
-                        {"text": "world.", "timelineStart": 0.4, "timelineEnd": 0.9},
+                        {"text": "Hello", "timelineStart": 0.0, "timelineEnd": 0.4, "speaker": "A"},
+                        {"text": "world.", "timelineStart": 0.4, "timelineEnd": 0.9, "speaker": "A"},
                     ],
                     "captionTranslations": {
                         "es": {
                             "language": "es",
                             "cues": [
-                                {"id": "c1", "start": 0.0, "end": 0.9, "text": "Hola mundo."}
+                                {"id": "c1", "start": 0.0, "end": 0.9, "text": "Hola mundo.", "speaker": "A"}
                             ],
                         }
                     },
@@ -113,7 +114,7 @@ class TranscriptIntelligenceTests(unittest.TestCase):
         result = inject_transcript_subtitles(project)
         captions = result["subtitleTracks"]
         self.assertEqual(len(captions), 1)
-        self.assertEqual(captions[0]["text"], "Hola mundo.")
+        self.assertEqual(captions[0]["text"], "A: Hola mundo.")
         self.assertEqual(captions[0]["captionLanguage"], "es")
         self.assertEqual(captions[0]["captionPreset"], "cinema")
 
