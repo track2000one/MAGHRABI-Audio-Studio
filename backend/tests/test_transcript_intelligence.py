@@ -118,6 +118,33 @@ class TranscriptIntelligenceTests(unittest.TestCase):
         self.assertEqual(captions[0]["captionLanguage"], "es")
         self.assertEqual(captions[0]["captionPreset"], "cinema")
 
+    def test_manual_source_cues_override_auto_group_timing_and_follow_corrected_words(self) -> None:
+        project = {
+            "audioTracks": [{
+                "dialogueTranscript": {
+                    "id": "tr-manual",
+                    "language": "en",
+                    "captionsEnabled": True,
+                    "captionLanguage": "source",
+                    "captionSpeakerLabels": True,
+                    "words": [
+                        {"id": "w1", "text": "Corrected", "timelineStart": 0.0, "timelineEnd": 0.4, "speaker": "HOST"},
+                        {"id": "w2", "text": "caption", "timelineStart": 0.4, "timelineEnd": 0.8, "speaker": "HOST"},
+                    ],
+                    "captionManualCues": [
+                        {"id": "c1", "start": 1.25, "end": 2.75, "text": "stale text", "speaker": "OLD", "wordIds": ["w1", "w2"]}
+                    ],
+                }
+            }]
+        }
+        result = inject_transcript_subtitles(project)
+        captions = result["subtitleTracks"]
+        self.assertEqual(len(captions), 1)
+        self.assertEqual(captions[0]["text"], "HOST: Corrected caption")
+        self.assertEqual(captions[0]["startAt"], 1.25)
+        self.assertEqual(captions[0]["endAt"], 2.75)
+        self.assertEqual(captions[0]["captionLanguage"], "en")
+
 
 if __name__ == "__main__":
     unittest.main()
