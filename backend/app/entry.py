@@ -2,6 +2,7 @@ from starlette.routing import Mount
 
 from .main import app
 from .audio_tools import router as audio_tools_router
+from .transcript_tools import router as transcript_tools_router
 from .video_tools import router as video_tools_router
 from .video_tools_v2 import router as video_tools_v2_router
 from .video_tools_v3 import router as video_tools_v3_router
@@ -38,6 +39,7 @@ from .video_tools_v33_runtime import router as video_tools_v33_router, install_v
 from .video_tools_v34_runtime import router as video_tools_v34_router, install_v34
 from .video_tools_v40_runtime import router as video_tools_v40_router, install_v40
 from .video_tools_cut_transitions import install_cut_transition_engine
+from .video_tools_transcript_captions import install_transcript_caption_engine
 from .security_hardening_v38 import install_security_hardening
 
 # main.py mounts the SPA at "/". Keep that catch-all route last so API
@@ -47,6 +49,7 @@ for route in static_mounts:
     app.router.routes.remove(route)
 
 app.include_router(audio_tools_router)
+app.include_router(transcript_tools_router)
 app.include_router(video_tools_router)
 app.include_router(video_tools_v2_router)
 app.include_router(video_tools_v3_router)
@@ -88,6 +91,11 @@ app.router.routes.extend(static_mounts)
 # support. Projects without transitionOut metadata continue to use the proven
 # historical V4 builder unchanged.
 install_cut_transition_engine()
+
+# Translate transcript metadata embedded in audio tracks into render-time
+# subtitle tracks. The V12 editor remains non-destructive and does not need to
+# own a second subtitle state model.
+install_transcript_caption_engine()
 
 # Install the historical reliability/release gates first, then V40 as the
 # non-waivable final Production gate. HTTP security hardening is outermost so
