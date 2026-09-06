@@ -15,6 +15,7 @@ import StudioFrameClockPro from './StudioFrameClockPro'
 import StudioPrecisionEditPro from './StudioPrecisionEditPro'
 import StudioProjectStatus from './StudioProjectStatus'
 import StudioSequencePlaybackPro from './StudioSequencePlaybackPro'
+import StudioSubtitleTimelineQCPro from './StudioSubtitleTimelineQCPro'
 import StudioThemeSelector, { getInitialStudioTheme, STUDIO_THEME_STORAGE_KEY, type StudioThemeId } from './StudioThemeSelector'
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
 import StudioTimelineInteractionPro from './StudioTimelineInteractionPro'
@@ -72,6 +73,7 @@ export default function StudioProApp() {
       <StudioDialogueCleanupPro />
       <StudioTranscriptEditorPro />
       <StudioTranscriptFinishingPro />
+      <StudioSubtitleTimelineQCPro />
       <StudioAudioMixerPro />
       <StudioTitlePreviewPro />
       <StudioProjectStatus />
