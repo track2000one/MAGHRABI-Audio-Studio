@@ -1,3 +1,7 @@
+.maghrabi-studio-pro main div[class*="rounded-3xl"]:has(> .maghrabi-live-audio-monitor) {
+  position: relative;
+}
+
 .maghrabi-live-audio-monitor {
   position: absolute;
   top: 54px;
