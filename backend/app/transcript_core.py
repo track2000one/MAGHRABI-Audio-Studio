@@ -158,12 +158,55 @@ def _normalized_words(document: dict) -> list[dict]:
         start = _word_time(item, "start")
         end = max(start + .01, _word_time(item, "end"))
         output.append({
+            "id": str(item.get("id") or "").strip() or None,
             "text": text,
             "start": start,
             "end": end,
             "speaker": str(item.get("speaker") or "").strip() or None,
         })
     return sorted(output, key=lambda item: (item["start"], item["end"]))
+
+
+def _manual_caption_groups(document: dict) -> list[dict] | None:
+    raw_cues = document.get("captionManualCues")
+    if not isinstance(raw_cues, list) or not raw_cues:
+        return None
+
+    raw_words = document.get("words") if isinstance(document.get("words"), list) else []
+    word_map: dict[str, dict] = {}
+    for item in raw_words:
+        if not isinstance(item, dict) or _bool(item.get("deleted"), False):
+            continue
+        word_id = str(item.get("id") or "").strip()
+        if word_id:
+            word_map[word_id] = item
+
+    show_speakers = _bool(document.get("captionSpeakerLabels"), False)
+    groups: list[dict] = []
+    for item in raw_cues:
+        if not isinstance(item, dict):
+            continue
+        start = max(0.0, _number(item.get("start"), 0.0))
+        end = max(start + .12, _number(item.get("end"), start + .12))
+        word_ids = item.get("wordIds") if isinstance(item.get("wordIds"), list) else []
+        resolved_words = [word_map.get(str(word_id or "").strip()) for word_id in word_ids]
+        resolved_words = [word for word in resolved_words if isinstance(word, dict)]
+        if resolved_words:
+            text = " ".join(str(word.get("text") or word.get("word") or "").strip() for word in resolved_words).strip()
+            speaker = str(resolved_words[0].get("speaker") or item.get("speaker") or "").strip() or None
+        else:
+            text = str(item.get("text") or "").strip()
+            speaker = str(item.get("speaker") or "").strip() or None
+        if not text:
+            continue
+        if show_speakers and speaker:
+            text = f"{speaker}: {text}"
+        groups.append({"text": text[:700], "startAt": start, "endAt": end})
+
+    if not groups:
+        return None
+    groups.sort(key=lambda group: (group["startAt"], group["endAt"]))
+    return groups
 
 
 def _caption_groups(words: list[dict], document: dict) -> list[dict]:
@@ -266,11 +309,16 @@ def inject_transcript_subtitles(project: dict[str, Any]) -> dict[str, Any]:
         if selected_translation is not None:
             caption_language, groups = selected_translation
         else:
-            words = _normalized_words(document)
-            if not words:
-                continue
-            caption_language = str(document.get("language") or "source").strip() or "source"
-            groups = _caption_groups(words, document)
+            manual_groups = _manual_caption_groups(document)
+            if manual_groups is not None:
+                caption_language = str(document.get("language") or "source").strip() or "source"
+                groups = manual_groups
+            else:
+                words = _normalized_words(document)
+                if not words:
+                    continue
+                caption_language = str(document.get("language") or "source").strip() or "source"
+                groups = _caption_groups(words, document)
 
         size = max(18, min(84, int(_number(document.get("captionSize"), 38))))
         position = str(document.get("captionPosition") or "bottom").strip().lower()
