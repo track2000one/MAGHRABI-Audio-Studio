@@ -9,6 +9,7 @@ import StudioAudioTimelinePro from './StudioAudioTimelinePro'
 import StudioAVSyncPro from './StudioAVSyncPro'
 import StudioCommandPalette from './StudioCommandPalette'
 import StudioCreativeSuite from './StudioCreativeSuite'
+import StudioDialogueCleanupPro from './StudioDialogueCleanupPro'
 import StudioEditingCorePro from './StudioEditingCorePro'
 import StudioFrameClockPro from './StudioFrameClockPro'
 import StudioPrecisionEditPro from './StudioPrecisionEditPro'
@@ -66,6 +67,7 @@ export default function StudioProApp() {
       <StudioAudioScrubShuttlePro />
       <StudioVoiceoverRecordingPro />
       <StudioADRTakeManagerPro />
+      <StudioDialogueCleanupPro />
       <StudioAudioMixerPro />
       <StudioTitlePreviewPro />
       <StudioProjectStatus />
