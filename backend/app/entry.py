@@ -3,6 +3,7 @@ from starlette.routing import Mount
 from .main import app
 from .audio_tools import router as audio_tools_router
 from .transcript_tools import router as transcript_tools_router
+from .transcript_translation_tools import router as transcript_translation_router
 from .video_tools import router as video_tools_router
 from .video_tools_v2 import router as video_tools_v2_router
 from .video_tools_v3 import router as video_tools_v3_router
@@ -50,6 +51,7 @@ for route in static_mounts:
 
 app.include_router(audio_tools_router)
 app.include_router(transcript_tools_router)
+app.include_router(transcript_translation_router)
 app.include_router(video_tools_router)
 app.include_router(video_tools_v2_router)
 app.include_router(video_tools_v3_router)
