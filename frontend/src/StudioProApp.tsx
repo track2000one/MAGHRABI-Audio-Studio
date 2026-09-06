@@ -19,6 +19,7 @@ import StudioThemeSelector, { getInitialStudioTheme, STUDIO_THEME_STORAGE_KEY, t
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
 import StudioTimelineInteractionPro from './StudioTimelineInteractionPro'
 import StudioTitlePreviewPro from './StudioTitlePreviewPro'
+import StudioTranscriptEditorPro from './StudioTranscriptEditorPro'
 import StudioTransitionPreviewPro from './StudioTransitionPreviewPro'
 import StudioTransitionsPro from './StudioTransitionsPro'
 import StudioTransportPro from './StudioTransportPro'
@@ -68,6 +69,7 @@ export default function StudioProApp() {
       <StudioVoiceoverRecordingPro />
       <StudioADRTakeManagerPro />
       <StudioDialogueCleanupPro />
+      <StudioTranscriptEditorPro />
       <StudioAudioMixerPro />
       <StudioTitlePreviewPro />
       <StudioProjectStatus />
