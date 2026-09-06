@@ -20,6 +20,7 @@ import StudioTimelineEnhancer from './StudioTimelineEnhancer'
 import StudioTimelineInteractionPro from './StudioTimelineInteractionPro'
 import StudioTitlePreviewPro from './StudioTitlePreviewPro'
 import StudioTranscriptEditorPro from './StudioTranscriptEditorPro'
+import StudioTranscriptFinishingPro from './StudioTranscriptFinishingPro'
 import StudioTransitionPreviewPro from './StudioTransitionPreviewPro'
 import StudioTransitionsPro from './StudioTransitionsPro'
 import StudioTransportPro from './StudioTransportPro'
@@ -70,6 +71,7 @@ export default function StudioProApp() {
       <StudioADRTakeManagerPro />
       <StudioDialogueCleanupPro />
       <StudioTranscriptEditorPro />
+      <StudioTranscriptFinishingPro />
       <StudioAudioMixerPro />
       <StudioTitlePreviewPro />
       <StudioProjectStatus />
