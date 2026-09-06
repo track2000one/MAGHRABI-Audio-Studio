@@ -20,6 +20,7 @@ import StudioTitlePreviewPro from './StudioTitlePreviewPro'
 import StudioTransitionPreviewPro from './StudioTransitionPreviewPro'
 import StudioTransitionsPro from './StudioTransitionsPro'
 import StudioTransportPro from './StudioTransportPro'
+import StudioVoiceoverRecordingPro from './StudioVoiceoverRecordingPro'
 import StudioWorkspaceNav from './StudioWorkspaceNav'
 import StudioWorkspaceResizePro from './StudioWorkspaceResizePro'
 import VideoStudioCreator from './VideoStudioCreator'
@@ -62,6 +63,7 @@ export default function StudioProApp() {
       <StudioCreativeSuite />
       <StudioAudioMonitoringPro />
       <StudioAudioScrubShuttlePro />
+      <StudioVoiceoverRecordingPro />
       <StudioAudioMixerPro />
       <StudioTitlePreviewPro />
       <StudioProjectStatus />
