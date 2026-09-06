@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.transcript_tools import _normalize_result
-from app.video_tools_transcript_captions import inject_transcript_subtitles
+from app.transcript_core import inject_transcript_subtitles, normalize_transcription_result
 
 
 class TranscriptIntelligenceTests(unittest.TestCase):
@@ -27,7 +26,7 @@ class TranscriptIntelligenceTests(unittest.TestCase):
                 {"id": "s2", "start": 0.95, "end": 2.0, "text": "general kenobi", "speaker": "B"},
             ],
         }
-        result = _normalize_result(primary, diarized)
+        result = normalize_transcription_result(primary, diarized)
         self.assertEqual([word["speaker"] for word in result["words"]], ["A", "A", "B", "B"])
         self.assertEqual(result["segments"][0]["speaker"], "A")
         self.assertEqual(result["segments"][1]["speaker"], "B")
