@@ -15,6 +15,7 @@ from urllib import request as urlrequest
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from .main import DATA_DIR, MAX_UPLOAD_MB, require_auth
+from .transcript_core import normalize_transcription_result
 
 router = APIRouter(prefix="/api/transcript", tags=["transcript-intelligence"])
 TRANSCRIPT_DIR = DATA_DIR / "transcripts"
@@ -108,9 +109,7 @@ def _multipart(fields: list[tuple[str, str]], file_path: Path) -> tuple[bytes, s
         pieces.append(b"\r\n")
     mime = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
     pieces.append(f"--{boundary}\r\n".encode())
-    pieces.append(
-        f'Content-Disposition: form-data; name="file"; filename="{file_path.name}"\r\n'.encode()
-    )
+    pieces.append(f'Content-Disposition: form-data; name="file"; filename="{file_path.name}"\r\n'.encode())
     pieces.append(f"Content-Type: {mime}\r\n\r\n".encode())
     pieces.append(file_path.read_bytes())
     pieces.append(b"\r\n")
@@ -153,107 +152,6 @@ def _upstream_transcription(fields: list[tuple[str, str]], file_path: Path) -> d
     if not isinstance(payload, dict):
         raise HTTPException(status_code=502, detail="استجابة خدمة التحويل إلى نص غير صالحة.")
     return payload
-
-
-def _safe_time(value: object, fallback: float = 0.0) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return fallback
-    if number != number or number in {float("inf"), float("-inf")}:
-        return fallback
-    return max(0.0, number)
-
-
-def _speaker_for_interval(start: float, end: float, segments: list[dict]) -> str | None:
-    midpoint = (start + end) / 2.0
-    best: tuple[float, str] | None = None
-    for segment in segments:
-        speaker = str(segment.get("speaker") or "").strip()
-        if not speaker:
-            continue
-        seg_start = _safe_time(segment.get("start"))
-        seg_end = max(seg_start, _safe_time(segment.get("end"), seg_start))
-        if seg_start <= midpoint <= seg_end:
-            return speaker
-        distance = min(abs(midpoint - seg_start), abs(midpoint - seg_end))
-        if best is None or distance < best[0]:
-            best = (distance, speaker)
-    return best[1] if best and best[0] <= 1.25 else None
-
-
-def _fallback_words(segments: list[dict]) -> list[dict]:
-    words: list[dict] = []
-    for segment in segments:
-        text = str(segment.get("text") or "").strip()
-        tokens = text.split()
-        if not tokens:
-            continue
-        start = _safe_time(segment.get("start"))
-        end = max(start + .02, _safe_time(segment.get("end"), start + .02))
-        span = max(.02, end - start)
-        for index, token in enumerate(tokens):
-            token_start = start + span * index / len(tokens)
-            token_end = start + span * (index + 1) / len(tokens)
-            words.append({"word": token, "start": token_start, "end": token_end})
-    return words
-
-
-def _normalize_result(primary: dict, diarized: dict | None) -> dict:
-    primary_segments = primary.get("segments") if isinstance(primary.get("segments"), list) else []
-    raw_words = primary.get("words") if isinstance(primary.get("words"), list) else []
-    if not raw_words:
-        raw_words = _fallback_words([item for item in primary_segments if isinstance(item, dict)])
-
-    speaker_segments = []
-    if diarized and isinstance(diarized.get("segments"), list):
-        speaker_segments = [item for item in diarized["segments"] if isinstance(item, dict)]
-
-    words: list[dict] = []
-    for index, item in enumerate(raw_words):
-        if not isinstance(item, dict):
-            continue
-        text = str(item.get("word") or item.get("text") or "").strip()
-        if not text:
-            continue
-        start = _safe_time(item.get("start"))
-        end = max(start + .01, _safe_time(item.get("end"), start + .08))
-        words.append({
-            "id": f"w{index + 1}",
-            "text": text,
-            "start": round(start, 4),
-            "end": round(end, 4),
-            "speaker": _speaker_for_interval(start, end, speaker_segments),
-        })
-
-    segments: list[dict] = []
-    source_segments = speaker_segments or [item for item in primary_segments if isinstance(item, dict)]
-    for index, item in enumerate(source_segments):
-        text = str(item.get("text") or "").strip()
-        if not text:
-            continue
-        start = _safe_time(item.get("start"))
-        end = max(start + .02, _safe_time(item.get("end"), start + .02))
-        segments.append({
-            "id": str(item.get("id") or f"s{index + 1}"),
-            "text": text,
-            "start": round(start, 4),
-            "end": round(end, 4),
-            "speaker": str(item.get("speaker") or "").strip() or None,
-        })
-
-    duration = _safe_time(primary.get("duration"))
-    if duration <= 0 and words:
-        duration = words[-1]["end"]
-    if diarized:
-        duration = max(duration, _safe_time(diarized.get("duration")))
-    return {
-        "text": str(primary.get("text") or (diarized or {}).get("text") or "").strip(),
-        "language": str(primary.get("language") or "").strip() or None,
-        "duration": round(duration, 4),
-        "words": words,
-        "segments": segments,
-    }
 
 
 @router.get("/status")
@@ -314,7 +212,7 @@ async def transcribe_audio(
                 diarize_fields.append(("language", language))
             diarized = await asyncio.to_thread(_upstream_transcription, diarize_fields, prepared)
 
-        normalized = _normalize_result(primary, diarized)
+        normalized = normalize_transcription_result(primary, diarized)
         normalized.update({
             "provider": "openai-compatible",
             "wordModel": _word_model(),
