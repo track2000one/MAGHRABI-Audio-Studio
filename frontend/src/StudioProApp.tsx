@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import StudioADRTakeManagerPro from './StudioADRTakeManagerPro'
 import StudioAdvancedTimelineEditPro from './StudioAdvancedTimelineEditPro'
 import StudioAdvancedTrimPro from './StudioAdvancedTrimPro'
 import StudioAudioMixerPro from './StudioAudioMixerPro'
@@ -64,6 +65,7 @@ export default function StudioProApp() {
       <StudioAudioMonitoringPro />
       <StudioAudioScrubShuttlePro />
       <StudioVoiceoverRecordingPro />
+      <StudioADRTakeManagerPro />
       <StudioAudioMixerPro />
       <StudioTitlePreviewPro />
       <StudioProjectStatus />
