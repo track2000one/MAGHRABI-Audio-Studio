@@ -221,6 +221,7 @@ def _translated_caption_groups(document: dict) -> tuple[str, list[dict]] | None:
     if not isinstance(raw_cues, list):
         return None
 
+    show_speakers = _bool(document.get("captionSpeakerLabels"), False)
     groups: list[dict] = []
     for item in raw_cues:
         if not isinstance(item, dict):
@@ -228,6 +229,9 @@ def _translated_caption_groups(document: dict) -> tuple[str, list[dict]] | None:
         text = str(item.get("text") or "").strip()
         if not text:
             continue
+        speaker = str(item.get("speaker") or "").strip() or None
+        if show_speakers and speaker:
+            text = f"{speaker}: {text}"
         start = max(0.0, _number(item.get("start"), 0.0))
         end = max(start + .12, _number(item.get("end"), start + .12))
         groups.append({"text": text[:700], "startAt": start, "endAt": end})
