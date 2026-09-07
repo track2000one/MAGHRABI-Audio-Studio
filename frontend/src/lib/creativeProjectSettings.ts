@@ -27,6 +27,10 @@ export type CreativeLookId =
   | 'moody-drama'
   | 'sports-punch'
 
+export type CreativeFontPreset = 'sans' | 'sans-bold' | 'serif' | 'serif-bold' | 'mono' | 'mono-bold'
+export type CreativeTextAnimation = 'none' | 'fade' | 'slide-up' | 'slide-left' | 'slide-right' | 'pop'
+export type CreativeTextAlign = 'left' | 'center' | 'right'
+
 export type CreativeTitle = {
   id: string
   kind: 'title' | 'subtitle'
@@ -37,6 +41,18 @@ export type CreativeTitle = {
   position: 'top' | 'center' | 'bottom'
   color: string
   boxOpacity: number
+  fontPreset?: CreativeFontPreset
+  align?: CreativeTextAlign
+  x?: number
+  y?: number
+  boxColor?: string
+  boxPadding?: number
+  borderColor?: string
+  borderWidth?: number
+  shadowColor?: string
+  shadowDistance?: number
+  lineSpacing?: number
+  animation?: CreativeTextAnimation
 }
 
 export type CreativeProjectSettings = {
@@ -126,18 +142,41 @@ function settingsKey(projectId?: string | null) {
   return `${STORAGE_PREFIX}${projectId || GLOBAL_KEY}`
 }
 
+function validColor(value: object, fallback: string) {
+  const text = String(value || '')
+  return /^#[0-9a-f]{6}$/i.test(text) ? text : fallback
+}
+
 function sanitizeTitle(raw: Partial<CreativeTitle>, index: number): CreativeTitle {
   const startAt = clamp(Number(raw.startAt ?? 0), 0, 86400)
+  const kind = raw.kind === 'subtitle' ? 'subtitle' : 'title'
+  const position = raw.position === 'top' || raw.position === 'center' ? raw.position : 'bottom'
+  const defaultY = position === 'top' ? .08 : position === 'center' ? .5 : .92
+  const fontPreset: CreativeFontPreset = ['sans', 'sans-bold', 'serif', 'serif-bold', 'mono', 'mono-bold'].includes(String(raw.fontPreset)) ? raw.fontPreset as CreativeFontPreset : kind === 'subtitle' ? 'sans-bold' : 'sans-bold'
+  const align: CreativeTextAlign = ['left', 'center', 'right'].includes(String(raw.align)) ? raw.align as CreativeTextAlign : 'center'
+  const animation: CreativeTextAnimation = ['none', 'fade', 'slide-up', 'slide-left', 'slide-right', 'pop'].includes(String(raw.animation)) ? raw.animation as CreativeTextAnimation : kind === 'subtitle' ? 'fade' : 'none'
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : `title-${Date.now().toString(36)}-${index}`,
-    kind: raw.kind === 'subtitle' ? 'subtitle' : 'title',
+    kind,
     text: String(raw.text || '').slice(0, 700),
     startAt,
     endAt: Math.max(startAt + .1, clamp(Number(raw.endAt ?? startAt + 4), 0, 86400)),
-    size: clamp(Number(raw.size ?? (raw.kind === 'subtitle' ? 38 : 54)), 18, 120),
-    position: raw.position === 'top' || raw.position === 'center' ? raw.position : 'bottom',
-    color: /^#[0-9a-f]{6}$/i.test(String(raw.color || '')) ? String(raw.color) : '#ffffff',
-    boxOpacity: clamp(Number(raw.boxOpacity ?? .48), 0, 1),
+    size: clamp(Number(raw.size ?? (kind === 'subtitle' ? 38 : 54)), 18, 140),
+    position,
+    color: validColor(raw.color, '#ffffff'),
+    boxOpacity: clamp(Number(raw.boxOpacity ?? (kind === 'subtitle' ? .48 : .30)), 0, 1),
+    fontPreset,
+    align,
+    x: clamp(Number(raw.x ?? .5), 0, 1),
+    y: clamp(Number(raw.y ?? defaultY), 0, 1),
+    boxColor: validColor(raw.boxColor, '#000000'),
+    boxPadding: clamp(Number(raw.boxPadding ?? (kind === 'subtitle' ? 12 : 14)), 0, 40),
+    borderColor: validColor(raw.borderColor, '#000000'),
+    borderWidth: clamp(Number(raw.borderWidth ?? (kind === 'subtitle' ? 0 : 1)), 0, 10),
+    shadowColor: validColor(raw.shadowColor, '#000000'),
+    shadowDistance: clamp(Number(raw.shadowDistance ?? (kind === 'subtitle' ? 2 : 3)), 0, 14),
+    lineSpacing: clamp(Number(raw.lineSpacing ?? 4), -10, 40),
+    animation,
   }
 }
 
@@ -173,8 +212,35 @@ export function saveCreativeSettings(projectId: string | null | undefined, setti
   window.dispatchEvent(new CustomEvent('maghrabi-creative-settings-changed', { detail: { projectId, settings } }))
 }
 
+function professionalFields(title: CreativeTitle) {
+  return {
+    fontPreset: title.fontPreset || 'sans-bold',
+    align: title.align || 'center',
+    x: clamp(Number(title.x ?? .5), 0, 1),
+    y: clamp(Number(title.y ?? (title.position === 'top' ? .08 : title.position === 'center' ? .5 : .92)), 0, 1),
+    boxColor: validColor(title.boxColor, '#000000'),
+    boxPadding: clamp(Number(title.boxPadding ?? 12), 0, 40),
+    borderColor: validColor(title.borderColor, '#000000'),
+    borderWidth: clamp(Number(title.borderWidth ?? 0), 0, 10),
+    shadowColor: validColor(title.shadowColor, '#000000'),
+    shadowDistance: clamp(Number(title.shadowDistance ?? 2), 0, 14),
+    lineSpacing: clamp(Number(title.lineSpacing ?? 4), -10, 40),
+    animation: title.animation || 'none',
+    boxColorLegacy: undefined,
+  }
+}
+
 function titleTrack(title: CreativeTitle): TextTrackManifest {
-  return { text: title.text, startAt: title.startAt, endAt: title.endAt, size: title.size, position: title.position }
+  return {
+    text: title.text,
+    startAt: title.startAt,
+    endAt: title.endAt,
+    size: title.size,
+    position: title.position,
+    color: title.color,
+    boxOpacity: title.boxOpacity,
+    ...professionalFields(title),
+  } as TextTrackManifest
 }
 
 function subtitleTrack(title: CreativeTitle): SubtitleTrackManifest {
@@ -186,7 +252,8 @@ function subtitleTrack(title: CreativeTitle): SubtitleTrackManifest {
     position: title.position,
     color: title.color,
     boxOpacity: title.boxOpacity,
-  }
+    ...professionalFields(title),
+  } as SubtitleTrackManifest
 }
 
 export function applyCreativeSettingsToManifest(
