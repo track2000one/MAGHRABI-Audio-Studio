@@ -205,7 +205,8 @@ export function applyCreativeSettingsToManifest(
       next.temperature = clamp(Number(next.temperature ?? 0) + preset.temperature * strength, -1, 1)
       next.vignette = clamp(Math.max(Number(next.vignette ?? 0), preset.vignette * strength), 0, 1)
     }
-    next.speedRamp = settings.speedRamp
+    if (settings.speedRamp !== 'off') next.speedRamp = settings.speedRamp
+    else next.speedRamp = next.speedRamp || 'off'
     next.audioFadeIn = Math.max(Number(next.audioFadeIn || 0), settings.audioFadeIn)
     next.audioFadeOut = Math.max(Number(next.audioFadeOut || 0), settings.audioFadeOut)
     return next
