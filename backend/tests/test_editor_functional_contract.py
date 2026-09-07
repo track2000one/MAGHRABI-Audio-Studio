@@ -93,6 +93,67 @@ class EditorFunctionalContractTests(unittest.TestCase):
         self.assertIn("if (settings.speedRamp !== 'off') next.speedRamp = settings.speedRamp", settings)
         self.assertIn("else next.speedRamp = next.speedRamp || 'off'", settings)
 
+    def test_motion_keyframe_editor_and_engine_cover_full_transform(self) -> None:
+        app = read(FRONTEND / "StudioProApp.tsx")
+        editor = read(FRONTEND / "StudioKeyframeEditorPro.tsx")
+        engine = read(BACKEND / "video_tools_motion_keyframes.py")
+        entry = read(BACKEND / "entry.py")
+
+        self.assertIn("StudioKeyframeEditorPro", app)
+        for token in (
+            "MOTION KEYFRAMES PRO",
+            "Zoom · Pan · Rotation · Opacity · Easing",
+            "transformKeyframes",
+            "rotation",
+            "opacity",
+            "ease-in-out",
+            "CINEMATIC PUSH",
+            "KEN BURNS",
+            "FADE MOTION",
+        ):
+            self.assertIn(token, editor)
+        for token in (
+            "_normalize_motion_keyframes",
+            "rotation",
+            "opacity",
+            "rotate=angle=",
+            "blend=all_expr=",
+            "install_motion_keyframe_engine",
+        ):
+            self.assertIn(token, engine)
+        self.assertIn("install_motion_keyframe_engine()", entry)
+
+    def test_text_designer_is_live_and_export_connected(self) -> None:
+        app = read(FRONTEND / "StudioProApp.tsx")
+        designer = read(FRONTEND / "StudioTextDesignerPro.tsx")
+        preview = read(FRONTEND / "StudioTitlePreviewPro.tsx")
+        settings = read(FRONTEND / "lib" / "creativeProjectSettings.ts")
+        engine = read(BACKEND / "video_tools_text_designer.py")
+        entry = read(BACKEND / "entry.py")
+
+        self.assertIn("StudioTextDesignerPro", app)
+        for token in (
+            "TEXT DESIGNER PRO",
+            "STYLE PRESETS",
+            "LOWER THIRD",
+            "fontPreset",
+            "boxPadding",
+            "borderWidth",
+            "shadowDistance",
+            "slide-up",
+            "slide-left",
+            "slide-right",
+            "pop",
+        ):
+            self.assertIn(token, designer)
+        for token in ("fontPreset", "boxColor", "borderColor", "shadowColor", "animation", "professionalFields"):
+            self.assertIn(token, settings)
+        for token in ("styleFor", "WebkitTextStroke", "textShadow", "motion(title, time)"):
+            self.assertIn(token, preview)
+        for token in ("FONT_PRESETS", "drawtext=fontfile=", "alpha=", "borderw=", "shadowx=", "install_text_designer_engine"):
+            self.assertIn(token, engine)
+        self.assertIn("install_text_designer_engine()", entry)
+
     def test_professional_look_library_has_depth(self) -> None:
         settings = read(FRONTEND / "lib" / "creativeProjectSettings.ts")
         looks_section = settings.split("export const CREATIVE_TRANSITIONS", 1)[0]
@@ -175,6 +236,11 @@ class EditorFunctionalContractTests(unittest.TestCase):
             '"audioTracks"',
             '"transition": "dissolve"',
             '"audioDuckingEnabled": true',
+            '"transformKeyframes"',
+            '"rotation":-2.0',
+            '"opacity":0.72',
+            '"fontPreset":"serif-bold"',
+            '"animation":"slide-up"',
             "ffprobe",
             "/api/video/v12/queue",
         ):
