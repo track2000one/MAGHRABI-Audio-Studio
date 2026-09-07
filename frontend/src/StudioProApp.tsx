@@ -7,6 +7,7 @@ import StudioAudioMonitoringPro from './StudioAudioMonitoringPro'
 import StudioAudioScrubShuttlePro from './StudioAudioScrubShuttlePro'
 import StudioAudioTimelinePro from './StudioAudioTimelinePro'
 import StudioAVSyncPro from './StudioAVSyncPro'
+import StudioClipFinishingPro from './StudioClipFinishingPro'
 import StudioCommandPalette from './StudioCommandPalette'
 import StudioCreativeSuite from './StudioCreativeSuite'
 import StudioDialogueCleanupPro from './StudioDialogueCleanupPro'
@@ -66,6 +67,7 @@ export default function StudioProApp() {
       <StudioTransportPro />
       <StudioWorkspaceResizePro />
       <StudioCreativeSuite />
+      <StudioClipFinishingPro />
       <StudioAudioMonitoringPro />
       <StudioAudioScrubShuttlePro />
       <StudioVoiceoverRecordingPro />
