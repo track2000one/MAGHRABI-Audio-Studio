@@ -74,6 +74,25 @@ class EditorFunctionalContractTests(unittest.TestCase):
         ):
             self.assertIn(token, settings)
 
+    def test_per_clip_finishing_is_mounted_and_survives_global_off(self) -> None:
+        app = read(FRONTEND / "StudioProApp.tsx")
+        finishing = read(FRONTEND / "StudioClipFinishingPro.tsx")
+        settings = read(FRONTEND / "lib" / "creativeProjectSettings.ts")
+
+        self.assertIn("StudioClipFinishingPro", app)
+        for token in (
+            "CLIP FINISHING PRO",
+            "BASE SPEED",
+            "SPEED RAMP · PER CLIP",
+            "PROFESSIONAL LOOK · PER CLIP",
+            "mutateClip",
+            "clip.speedRamp = speedRamp",
+            "clip.clipFinishingLook",
+        ):
+            self.assertIn(token, finishing)
+        self.assertIn("if (settings.speedRamp !== 'off') next.speedRamp = settings.speedRamp", settings)
+        self.assertIn("else next.speedRamp = next.speedRamp || 'off'", settings)
+
     def test_professional_look_library_has_depth(self) -> None:
         settings = read(FRONTEND / "lib" / "creativeProjectSettings.ts")
         looks_section = settings.split("export const CREATIVE_TRANSITIONS", 1)[0]
@@ -102,6 +121,8 @@ class EditorFunctionalContractTests(unittest.TestCase):
     def test_transition_library_and_ffmpeg_engine_are_connected(self) -> None:
         settings = read(FRONTEND / "lib" / "creativeProjectSettings.ts")
         engine = read(BACKEND / "video_tools_v4.py")
+        cut_engine = read(BACKEND / "video_tools_cut_transitions.py")
+        entry = read(BACKEND / "entry.py")
         transitions = {
             "none",
             "fade",
@@ -124,6 +145,9 @@ class EditorFunctionalContractTests(unittest.TestCase):
                 self.assertIn(f'"{transition}"', engine)
         self.assertIn("xfade=transition=", engine)
         self.assertIn("acrossfade=d=", engine)
+        self.assertIn("transitionOut", cut_engine)
+        self.assertIn("build_v4_filters_with_cut_transitions", cut_engine)
+        self.assertIn("install_cut_transition_engine()", entry)
 
     def test_v12_queue_delegates_to_proven_render_stack(self) -> None:
         v12 = read(BACKEND / "video_tools_v12.py")
