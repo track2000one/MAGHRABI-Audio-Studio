@@ -142,7 +142,7 @@ function settingsKey(projectId?: string | null) {
   return `${STORAGE_PREFIX}${projectId || GLOBAL_KEY}`
 }
 
-function validColor(value: object, fallback: string) {
+function validColor(value: unknown, fallback: string) {
   const text = String(value || '')
   return /^#[0-9a-f]{6}$/i.test(text) ? text : fallback
 }
@@ -152,7 +152,7 @@ function sanitizeTitle(raw: Partial<CreativeTitle>, index: number): CreativeTitl
   const kind = raw.kind === 'subtitle' ? 'subtitle' : 'title'
   const position = raw.position === 'top' || raw.position === 'center' ? raw.position : 'bottom'
   const defaultY = position === 'top' ? .08 : position === 'center' ? .5 : .92
-  const fontPreset: CreativeFontPreset = ['sans', 'sans-bold', 'serif', 'serif-bold', 'mono', 'mono-bold'].includes(String(raw.fontPreset)) ? raw.fontPreset as CreativeFontPreset : kind === 'subtitle' ? 'sans-bold' : 'sans-bold'
+  const fontPreset: CreativeFontPreset = ['sans', 'sans-bold', 'serif', 'serif-bold', 'mono', 'mono-bold'].includes(String(raw.fontPreset)) ? raw.fontPreset as CreativeFontPreset : 'sans-bold'
   const align: CreativeTextAlign = ['left', 'center', 'right'].includes(String(raw.align)) ? raw.align as CreativeTextAlign : 'center'
   const animation: CreativeTextAnimation = ['none', 'fade', 'slide-up', 'slide-left', 'slide-right', 'pop'].includes(String(raw.animation)) ? raw.animation as CreativeTextAnimation : kind === 'subtitle' ? 'fade' : 'none'
   return {
@@ -226,7 +226,6 @@ function professionalFields(title: CreativeTitle) {
     shadowDistance: clamp(Number(title.shadowDistance ?? 2), 0, 14),
     lineSpacing: clamp(Number(title.lineSpacing ?? 4), -10, 40),
     animation: title.animation || 'none',
-    boxColorLegacy: undefined,
   }
 }
 
