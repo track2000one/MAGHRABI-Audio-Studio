@@ -91,7 +91,12 @@ jobs:
                 "speedRamp": "off",
                 "audioFadeIn": 0.12,
                 "audioFadeOut": 0.12,
-                "timelineStartAt": 0.0
+                "timelineStartAt": 0.0,
+                "transformKeyframes": [
+                  {"time":0.0,"zoom":1.0,"panX":-0.08,"panY":0.03,"rotation":-2.0,"opacity":0.72,"easing":"ease-out"},
+                  {"time":0.45,"zoom":1.18,"panX":0.05,"panY":-0.04,"rotation":1.5,"opacity":1.0,"easing":"ease-in-out"},
+                  {"time":1.0,"zoom":1.28,"panX":0.12,"panY":0.02,"rotation":0.0,"opacity":0.86,"easing":"ease-in"}
+                ]
               },
               {
                 "fileIndex": 1,
@@ -115,10 +120,10 @@ jobs:
               }
             ],
             "textTracks": [
-              {"text":"MAGHRABI CREATOR","startAt":0.15,"endAt":1.25,"size":44,"position":"top"}
+              {"text":"MAGHRABI CREATOR","startAt":0.15,"endAt":1.25,"size":44,"position":"top","color":"#ffffff","fontPreset":"serif-bold","align":"center","x":0.5,"y":0.12,"boxColor":"#000000","boxOpacity":0.20,"boxPadding":16,"borderColor":"#111827","borderWidth":1,"shadowColor":"#000000","shadowDistance":4,"lineSpacing":5,"animation":"slide-up"}
             ],
             "subtitleTracks": [
-              {"text":"PROFESSIONAL EDITOR SMOKE","startAt":0.25,"endAt":2.55,"size":28,"position":"bottom","color":"#ffffff","boxOpacity":0.45}
+              {"text":"PROFESSIONAL EDITOR SMOKE","startAt":0.25,"endAt":2.55,"size":28,"position":"bottom","color":"#ffffff","boxOpacity":0.52,"fontPreset":"sans-bold","align":"center","x":0.5,"y":0.90,"boxColor":"#000000","boxPadding":12,"borderColor":"#000000","borderWidth":0,"shadowColor":"#000000","shadowDistance":2,"lineSpacing":4,"animation":"fade"}
             ],
             "audioTracks": [
               {
@@ -169,7 +174,7 @@ jobs:
             -F 'manifest=<creator-smoke/manifest.json' \
             -F 'output_size=720p' \
             -F 'quality=draft' \
-            -F 'name=Creator E2E Dialogue Cleanup Smoke' \
+            -F 'name=Creator E2E Motion Text Smoke' \
             http://127.0.0.1:18002/api/video/v12/queue > creator-smoke/enqueue.json
           python - <<'PY'
           import json
@@ -221,7 +226,7 @@ jobs:
           assert video.get('width')==1280 and video.get('height')==720, video
           assert int(audio.get('sample_rate', 0))==48000, audio
           assert int(audio.get('channels', 0))==2, audio
-          print('dialogue-cleanup-render-ok', duration, streams)
+          print('motion-text-render-ok', duration, streams)
           PY
 
       - name: Save creator smoke evidence
