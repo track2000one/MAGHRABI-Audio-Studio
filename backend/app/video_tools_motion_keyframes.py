@@ -5,7 +5,7 @@ from typing import Callable
 
 from fastapi import HTTPException
 
-from .video_tools import _duration, _has_audio, _probe, _run_ffmpeg
+from .video_tools import _duration, _probe, _run_ffmpeg
 from .video_tools_v3 import _safe_clip
 from .video_tools_v7 import _video_dimensions
 
@@ -80,19 +80,19 @@ def _ease_expr(kind: str, p: str) -> str:
     return p
 
 
-def _segment_expr(a: dict, b: dict, key: str, duration: float) -> str:
+def _segment_expr(a: dict, b: dict, key: str, duration: float, time_var: str = "t") -> str:
     ta = float(a["time"]) * duration
     tb = float(b["time"]) * duration
     va = float(a[key])
     vb = float(b[key])
     if tb <= ta + .0001 or abs(vb - va) < .000001:
         return f"{va:.8f}"
-    p = f"min(max((t-{ta:.8f})/{max(.0001, tb-ta):.8f},0),1)"
+    p = f"min(max(({time_var}-{ta:.8f})/{max(.0001, tb-ta):.8f},0),1)"
     eased = _ease_expr(str(a.get("easing", "linear")), p)
     return f"{va:.8f}+({vb-va:.8f})*({eased})"
 
 
-def _piecewise_expr(points: list[dict], key: str, duration: float) -> str:
+def _piecewise_expr(points: list[dict], key: str, duration: float, time_var: str = "t") -> str:
     if not points:
         return "0" if key == "rotation" else "1"
     if len(points) == 1:
@@ -101,8 +101,8 @@ def _piecewise_expr(points: list[dict], key: str, duration: float) -> str:
     for index in range(len(points) - 2, -1, -1):
         a, b = points[index], points[index + 1]
         tb = float(b["time"]) * duration
-        segment = _segment_expr(a, b, key, duration)
-        result = f"if(lt(t,{tb:.8f}),{segment},{result})"
+        segment = _segment_expr(a, b, key, duration, time_var)
+        result = f"if(lt({time_var},{tb:.8f}),{segment},{result})"
     return result
 
 
@@ -117,8 +117,11 @@ def _apply_rotation_opacity(source: Path, probe: dict, clip: dict, folder: Path,
 
     duration = max(.05, _duration(probe))
     width, height = _video_dimensions(probe)
-    rotation = _piecewise_expr(points, "rotation", duration)
-    opacity = _piecewise_expr(points, "opacity", duration)
+    # rotate evaluates timestamps as lowercase `t`; blend exposes timestamp as
+    # uppercase `T`. Build the same easing curve against the correct variable
+    # for each filter instead of performing an unsafe string replacement.
+    rotation = _piecewise_expr(points, "rotation", duration, "t")
+    opacity = _piecewise_expr(points, "opacity", duration, "T")
     output = folder / f"motion-pro-{index}.mp4"
 
     filters = (
