@@ -62,7 +62,7 @@ class NestedSequencesContractTests(unittest.TestCase):
         store = read(FRONTEND / "lib" / "nestedSequenceProjectSettings.ts")
 
         self.assertIn("/api/video/v12/queue", panel)
-        self.assertIn("init.body instanceof FormData", panel)
+        self.assertIn("init?.body instanceof FormData", panel)
         self.assertIn("injectActiveNestedSequences(parsed)", panel)
         self.assertIn("manifest: nestedSequenceToManifest(sequence)", store)
 
