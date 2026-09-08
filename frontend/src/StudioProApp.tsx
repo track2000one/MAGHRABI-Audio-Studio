@@ -14,6 +14,7 @@ import StudioCompositingPro from './StudioCompositingPro'
 import StudioCreativeSuite from './StudioCreativeSuite'
 import StudioDialogueCleanupPro from './StudioDialogueCleanupPro'
 import StudioEditingCorePro from './StudioEditingCorePro'
+import StudioEditorShellPro from './StudioEditorShellPro'
 import StudioEffectsMasksPro from './StudioEffectsMasksPro'
 import StudioFrameClockPro from './StudioFrameClockPro'
 import StudioKeyframeEditorPro from './StudioKeyframeEditorPro'
@@ -47,6 +48,7 @@ import './studioTransitionPreview.css'
 import './studioWorkspaceResize.css'
 import './studioTitlePreview.css'
 import './studioWorkspaceHero.css'
+import './studioEditorShellPro.css'
 
 export default function StudioProApp() {
   const [theme, setTheme] = useState<StudioThemeId>(() => getInitialStudioTheme())
@@ -60,6 +62,7 @@ export default function StudioProApp() {
     <div className="maghrabi-studio-pro min-h-screen" data-studio-theme={theme}>
       <StudioWorkspaceNav />
       <VideoStudioCreator />
+      <StudioEditorShellPro />
       <StudioTimelineEnhancer />
       <StudioFrameClockPro />
       <StudioAVSyncPro />
