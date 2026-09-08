@@ -41,6 +41,7 @@ from .video_tools_v34_runtime import router as video_tools_v34_router, install_v
 from .video_tools_v40_runtime import router as video_tools_v40_router, install_v40
 from .video_tools_cut_transitions import install_cut_transition_engine
 from .video_tools_motion_keyframes import install_motion_keyframe_engine
+from .video_tools_color_grading import install_color_grading_engine
 from .video_tools_text_designer import install_text_designer_engine
 from .video_tools_transcript_captions import install_transcript_caption_engine
 from .security_hardening_v38 import install_security_hardening
@@ -100,9 +101,12 @@ install_cut_transition_engine()
 # opacity motion while preserving the proven zoom/pan path.
 install_motion_keyframe_engine()
 
+# Apply master LUT and grading after timeline/PIP composition. Text Designer is
+# installed after this hook so typography remains outside the color transform.
+install_color_grading_engine()
+
 # Replace legacy title/subtitle rendering on the V12 path with the professional
-# Text Designer layer while retaining the already-installed cut transition
-# builder underneath it.
+# Text Designer layer after LUT + Color Grading Pro.
 install_text_designer_engine()
 
 # Translate transcript metadata embedded in audio tracks into render-time
