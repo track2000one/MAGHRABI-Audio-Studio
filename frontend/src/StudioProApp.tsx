@@ -26,6 +26,7 @@ import StudioSubtitleTimelineQCPro from './StudioSubtitleTimelineQCPro'
 import StudioTextDesignerPro from './StudioTextDesignerPro'
 import StudioThemeSelector, { getInitialStudioTheme, STUDIO_THEME_STORAGE_KEY, type StudioThemeId } from './StudioThemeSelector'
 import StudioTimelineEnhancer from './StudioTimelineEnhancer'
+import StudioTimelineFluidMovePro from './StudioTimelineFluidMovePro'
 import StudioTimelineInteractionPro from './StudioTimelineInteractionPro'
 import StudioTitlePreviewPro from './StudioTitlePreviewPro'
 import StudioTranscriptEditorPro from './StudioTranscriptEditorPro'
@@ -64,6 +65,7 @@ export default function StudioProApp() {
       <VideoStudioCreator />
       <StudioEditorShellPro />
       <StudioTimelineEnhancer />
+      <StudioTimelineFluidMovePro />
       <StudioFrameClockPro />
       <StudioAVSyncPro />
       <StudioAdvancedTimelineEditPro />
