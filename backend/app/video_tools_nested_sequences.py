@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
+import logging
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Callable
 
 from fastapi import HTTPException, UploadFile
 
@@ -13,6 +15,7 @@ MAX_NESTED_SEQUENCES = 12
 MAX_NESTED_DURATION = 900.0
 MAX_NESTED_CLIPS = 120
 _MAX_INTERNAL_VIDEO_FILES = 48
+LOGGER = logging.getLogger("uvicorn.error")
 
 
 def _safe_float(value: object, default: float = 0.0) -> float:
@@ -216,10 +219,20 @@ def _subtract_audio_ranges(track: dict, sequences: list[dict]) -> list[dict]:
 def _replace_parent_range_media(project: dict, sequences: list[dict]) -> None:
     overlays = project.get("videoOverlays", []) or []
     if isinstance(overlays, list):
-        project["videoOverlays"] = [piece for track in overlays if isinstance(track, dict) for piece in _subtract_overlay_ranges(track, sequences)]
+        project["videoOverlays"] = [
+            piece
+            for track in overlays
+            if isinstance(track, dict)
+            for piece in _subtract_overlay_ranges(track, sequences)
+        ]
     audios = project.get("audioTracks", []) or []
     if isinstance(audios, list):
-        project["audioTracks"] = [piece for track in audios if isinstance(track, dict) for piece in _subtract_audio_ranges(track, sequences)]
+        project["audioTracks"] = [
+            piece
+            for track in audios
+            if isinstance(track, dict)
+            for piece in _subtract_audio_ranges(track, sequences)
+        ]
 
 
 def _prepare_parent_for_compounds(project: dict) -> dict:
@@ -240,7 +253,7 @@ async def _run_background(response: object) -> None:
     background = getattr(response, "background", None)
     if background is not None:
         result = background()
-        if isinstance(result, Awaitable):
+        if inspect.isawaitable(result):
             await result
 
 
@@ -290,19 +303,33 @@ def install_nested_sequence_engine() -> None:
             project = json.loads(manifest)
         except json.JSONDecodeError:
             return await base_render(
-                video_files=video_files, audio_files=audio_files, image_files=image_files,
-                lut_file=lut_file, manifest=manifest, output_size=output_size,
-                quality=quality, _username=_username,
+                video_files=video_files,
+                audio_files=audio_files,
+                image_files=image_files,
+                lut_file=lut_file,
+                manifest=manifest,
+                output_size=output_size,
+                quality=quality,
+                _username=_username,
             )
 
         sequences = _normalize_sequences(project)
-        placeholders = [clip for clip in project.get("clips", []) if isinstance(clip, dict) and clip.get("compoundSequenceId")]
+        placeholders = [
+            clip
+            for clip in project.get("clips", [])
+            if isinstance(clip, dict) and clip.get("compoundSequenceId")
+        ]
         if not sequences or not placeholders:
             project.pop("compoundSequences", None)
             return await base_render(
-                video_files=video_files, audio_files=audio_files, image_files=image_files,
-                lut_file=lut_file, manifest=json.dumps(project, ensure_ascii=False), output_size=output_size,
-                quality=quality, _username=_username,
+                video_files=video_files,
+                audio_files=audio_files,
+                image_files=image_files,
+                lut_file=lut_file,
+                manifest=json.dumps(project, ensure_ascii=False),
+                output_size=output_size,
+                quality=quality,
+                _username=_username,
             )
 
         sequence_map = {str(item["id"]): item for item in sequences}
@@ -311,11 +338,20 @@ def install_nested_sequence_engine() -> None:
         generated_handles: list[object] = []
         generated_index: dict[str, int] = {}
         try:
-            for sequence_id in dict.fromkeys(str(clip.get("compoundSequenceId")) for clip in placeholders):
+            unique_sequence_ids = dict.fromkeys(
+                str(clip.get("compoundSequenceId")) for clip in placeholders
+            )
+            for sequence_id in unique_sequence_ids:
                 sequence = sequence_map.get(sequence_id)
                 if sequence is None:
                     raise HTTPException(status_code=400, detail=f"Compound placeholder بلا Sequence: {sequence_id}")
 
+                LOGGER.info(
+                    "nested_sequence_child_render_start sequence_id=%s parent_start=%.3f duration=%.3f",
+                    sequence_id,
+                    float(sequence["parentStartAt"]),
+                    float(sequence["duration"]),
+                )
                 child_folder = temp_root / f"child-{len(generated_uploads):02d}"
                 child_folder.mkdir(parents=True, exist_ok=True)
                 child_manifest = dict(sequence["manifest"])
@@ -366,6 +402,11 @@ def install_nested_sequence_engine() -> None:
                 generated_handles.append(handle)
                 generated_index[sequence_id] = len(video_files) + len(generated_uploads)
                 generated_uploads.append(UploadFile(file=handle, filename=generated_path.name))
+                LOGGER.info(
+                    "nested_sequence_child_render_complete sequence_id=%s generated_index=%d",
+                    sequence_id,
+                    generated_index[sequence_id],
+                )
 
             for clip in project.get("clips", []):
                 if not isinstance(clip, dict) or not clip.get("compoundSequenceId"):
