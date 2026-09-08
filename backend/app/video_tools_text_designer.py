@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import re
+import threading
 from pathlib import Path
 from typing import Callable
 
@@ -19,6 +20,7 @@ FONT_PRESETS = {
 }
 TEXT_ANIMATIONS = {"none", "fade", "slide-up", "slide-left", "slide-right", "pop"}
 TEXT_ALIGNS = {"left", "center", "right"}
+_CONTEXT = threading.local()
 
 
 def _color(value: object, fallback: str) -> str:
@@ -156,14 +158,20 @@ def _append_professional_text(
 
 
 def install_text_designer_engine() -> None:
-    # V12 ultimately renders through the V9 shared builder. Capture whichever
-    # builder is installed at this point (including per-cut transitions), strip
-    # legacy text rendering, then append the professional drawtext layer.
+    """Install professional text after LUT and master color grading.
+
+    V9 adds PIP overlays after the shared builder and calls `_apply_master_lut`
+    immediately before encode. We therefore strip legacy text in the builder,
+    retain its metadata in thread-local render context, then append drawtext from
+    the LUT hook. If Color Grading Pro is installed first, that hook already
+    performs LUT -> grade, producing the final order: PIP -> LUT -> grade -> text.
+    """
     from . import video_tools_v9
 
     base_builder: Callable = video_tools_v9._build_v4_filters
+    base_lut: Callable = video_tools_v9._apply_master_lut
 
-    def build_with_text_designer(
+    def build_with_text_context(
         project: dict,
         videos: list[Path],
         audios: list[Path],
@@ -179,7 +187,24 @@ def install_text_designer_engine() -> None:
         filters, video_out, audio_out, timeline_duration = base_builder(
             stripped, videos, audios, images, video_probes, width, height, folder
         )
-        video_out = _append_professional_text(filters, video_out, project, folder, timeline_duration)
+        _CONTEXT.project = project
+        _CONTEXT.folder = folder
+        _CONTEXT.timeline_duration = timeline_duration
         return filters, video_out, audio_out, timeline_duration
 
-    video_tools_v9._build_v4_filters = build_with_text_designer
+    def apply_lut_grade_then_text(filters: list[str], video_out: str, lut: Path | None) -> str:
+        output = base_lut(filters, video_out, lut)
+        try:
+            project = getattr(_CONTEXT, "project", None)
+            folder = getattr(_CONTEXT, "folder", None)
+            timeline_duration = getattr(_CONTEXT, "timeline_duration", None)
+            if project is None or folder is None or timeline_duration is None:
+                return output
+            return _append_professional_text(filters, output, project, folder, float(timeline_duration))
+        finally:
+            for key in ("project", "folder", "timeline_duration"):
+                if hasattr(_CONTEXT, key):
+                    delattr(_CONTEXT, key)
+
+    video_tools_v9._build_v4_filters = build_with_text_context
+    video_tools_v9._apply_master_lut = apply_lut_grade_then_text
