@@ -17,6 +17,7 @@ import StudioEditingCorePro from './StudioEditingCorePro'
 import StudioEffectsMasksPro from './StudioEffectsMasksPro'
 import StudioFrameClockPro from './StudioFrameClockPro'
 import StudioKeyframeEditorPro from './StudioKeyframeEditorPro'
+import StudioNestedSequencesPro from './StudioNestedSequencesPro'
 import StudioPrecisionEditPro from './StudioPrecisionEditPro'
 import StudioProjectStatus from './StudioProjectStatus'
 import StudioSequencePlaybackPro from './StudioSequencePlaybackPro'
@@ -78,6 +79,7 @@ export default function StudioProApp() {
       <StudioKeyframeEditorPro />
       <StudioEffectsMasksPro />
       <StudioCompositingPro />
+      <StudioNestedSequencesPro />
       <StudioColorGradingPro />
       <StudioTextDesignerPro />
       <StudioAudioMonitoringPro />
