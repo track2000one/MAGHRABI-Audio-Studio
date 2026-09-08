@@ -26,6 +26,7 @@ import StudioTimelineInteractionPro from './StudioTimelineInteractionPro'
 import StudioTitlePreviewPro from './StudioTitlePreviewPro'
 import StudioTranscriptEditorPro from './StudioTranscriptEditorPro'
 import StudioTranscriptFinishingPro from './StudioTranscriptFinishingPro'
+import StudioTransitionBrowserPro from './StudioTransitionBrowserPro'
 import StudioTransitionPreviewPro from './StudioTransitionPreviewPro'
 import StudioTransitionsPro from './StudioTransitionsPro'
 import StudioTransportPro from './StudioTransportPro'
@@ -63,6 +64,7 @@ export default function StudioProApp() {
       <StudioTimelineInteractionPro />
       <StudioAdvancedTrimPro />
       <StudioTransitionsPro />
+      <StudioTransitionBrowserPro />
       <StudioEditingCorePro />
       <StudioPrecisionEditPro />
       <StudioTransitionPreviewPro />
