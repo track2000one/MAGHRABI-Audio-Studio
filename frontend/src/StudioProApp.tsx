@@ -13,6 +13,7 @@ import StudioCommandPalette from './StudioCommandPalette'
 import StudioCreativeSuite from './StudioCreativeSuite'
 import StudioDialogueCleanupPro from './StudioDialogueCleanupPro'
 import StudioEditingCorePro from './StudioEditingCorePro'
+import StudioEffectsMasksPro from './StudioEffectsMasksPro'
 import StudioFrameClockPro from './StudioFrameClockPro'
 import StudioKeyframeEditorPro from './StudioKeyframeEditorPro'
 import StudioPrecisionEditPro from './StudioPrecisionEditPro'
@@ -74,6 +75,7 @@ export default function StudioProApp() {
       <StudioCreativeSuite />
       <StudioClipFinishingPro />
       <StudioKeyframeEditorPro />
+      <StudioEffectsMasksPro />
       <StudioColorGradingPro />
       <StudioTextDesignerPro />
       <StudioAudioMonitoringPro />
