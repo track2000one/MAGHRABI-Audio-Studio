@@ -32,6 +32,10 @@ const tabs: NavTab[] = [
 ]
 
 function openCreative(tab: CreativeTab) {
+  if (tab === 'transitions') {
+    window.dispatchEvent(new CustomEvent('maghrabi-open-transition-browser'))
+    return
+  }
   window.dispatchEvent(new CustomEvent('maghrabi-open-creative-suite', { detail: { tab } }))
 }
 
