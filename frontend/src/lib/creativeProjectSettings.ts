@@ -55,6 +55,27 @@ export type CreativeTitle = {
   animation?: CreativeTextAnimation
 }
 
+export type CreativeColorGrade = {
+  enabled: boolean
+  exposure: number
+  contrast: number
+  highlights: number
+  shadows: number
+  whites: number
+  blacks: number
+  temperature: number
+  tint: number
+  saturation: number
+  vibrance: number
+  hue: number
+  gamma: number
+  curveShadows: number
+  curveMidtones: number
+  curveHighlights: number
+  vignette: number
+  sharpen: number
+}
+
 export type CreativeProjectSettings = {
   look: CreativeLookId
   lookStrength: number
@@ -66,6 +87,7 @@ export type CreativeProjectSettings = {
   audioFadeIn: number
   audioFadeOut: number
   titles: CreativeTitle[]
+  colorGrade: CreativeColorGrade
 }
 
 export type CreativeLookPreset = {
@@ -83,6 +105,27 @@ export type CreativeLookPreset = {
 
 const STORAGE_PREFIX = 'maghrabi-creative-settings-v1:'
 const GLOBAL_KEY = 'global'
+
+export const DEFAULT_COLOR_GRADE: CreativeColorGrade = {
+  enabled: false,
+  exposure: 0,
+  contrast: 1,
+  highlights: 0,
+  shadows: 0,
+  whites: 0,
+  blacks: 0,
+  temperature: 0,
+  tint: 0,
+  saturation: 1,
+  vibrance: 0,
+  hue: 0,
+  gamma: 1,
+  curveShadows: 0,
+  curveMidtones: 0,
+  curveHighlights: 0,
+  vignette: 0,
+  sharpen: 0,
+}
 
 export const CREATIVE_LOOKS: CreativeLookPreset[] = [
   { id: 'none', name: 'Original', description: 'بدون معالجة لونية إضافية', filter: 'none', brightness: 0, contrast: 1, saturation: 1, temperature: 0, vignette: 0, swatches: ['#1f2937', '#64748b', '#cbd5e1'] },
@@ -132,6 +175,7 @@ export const DEFAULT_CREATIVE_SETTINGS: CreativeProjectSettings = {
   audioFadeIn: 0,
   audioFadeOut: 0,
   titles: [],
+  colorGrade: { ...DEFAULT_COLOR_GRADE },
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -145,6 +189,30 @@ function settingsKey(projectId?: string | null) {
 function validColor(value: unknown, fallback: string) {
   const text = String(value || '')
   return /^#[0-9a-f]{6}$/i.test(text) ? text : fallback
+}
+
+export function sanitizeColorGrade(raw?: Partial<CreativeColorGrade> | null): CreativeColorGrade {
+  const value = raw || {}
+  return {
+    enabled: Boolean(value.enabled),
+    exposure: clamp(Number(value.exposure ?? 0), -3, 3),
+    contrast: clamp(Number(value.contrast ?? 1), .5, 2),
+    highlights: clamp(Number(value.highlights ?? 0), -1, 1),
+    shadows: clamp(Number(value.shadows ?? 0), -1, 1),
+    whites: clamp(Number(value.whites ?? 0), -1, 1),
+    blacks: clamp(Number(value.blacks ?? 0), -1, 1),
+    temperature: clamp(Number(value.temperature ?? 0), -1, 1),
+    tint: clamp(Number(value.tint ?? 0), -1, 1),
+    saturation: clamp(Number(value.saturation ?? 1), 0, 2),
+    vibrance: clamp(Number(value.vibrance ?? 0), -1, 1),
+    hue: clamp(Number(value.hue ?? 0), -180, 180),
+    gamma: clamp(Number(value.gamma ?? 1), .5, 2),
+    curveShadows: clamp(Number(value.curveShadows ?? 0), -1, 1),
+    curveMidtones: clamp(Number(value.curveMidtones ?? 0), -1, 1),
+    curveHighlights: clamp(Number(value.curveHighlights ?? 0), -1, 1),
+    vignette: clamp(Number(value.vignette ?? 0), 0, 1),
+    sharpen: clamp(Number(value.sharpen ?? 0), 0, 1),
+  }
 }
 
 function sanitizeTitle(raw: Partial<CreativeTitle>, index: number): CreativeTitle {
@@ -181,10 +249,10 @@ function sanitizeTitle(raw: Partial<CreativeTitle>, index: number): CreativeTitl
 }
 
 export function loadCreativeSettings(projectId?: string | null): CreativeProjectSettings {
-  if (typeof window === 'undefined') return { ...DEFAULT_CREATIVE_SETTINGS }
+  if (typeof window === 'undefined') return { ...DEFAULT_CREATIVE_SETTINGS, colorGrade: { ...DEFAULT_COLOR_GRADE } }
   try {
     const raw = window.localStorage.getItem(settingsKey(projectId))
-    if (!raw) return { ...DEFAULT_CREATIVE_SETTINGS }
+    if (!raw) return { ...DEFAULT_CREATIVE_SETTINGS, colorGrade: { ...DEFAULT_COLOR_GRADE } }
     const parsed = JSON.parse(raw) as Partial<CreativeProjectSettings>
     const look = CREATIVE_LOOKS.some((item) => item.id === parsed.look) ? parsed.look! : 'none'
     const transition = CREATIVE_TRANSITIONS.some((item) => item.value === parsed.transition) ? parsed.transition! : 'none'
@@ -200,16 +268,18 @@ export function loadCreativeSettings(projectId?: string | null): CreativeProject
       audioFadeIn: clamp(Number(parsed.audioFadeIn ?? 0), 0, 10),
       audioFadeOut: clamp(Number(parsed.audioFadeOut ?? 0), 0, 10),
       titles: Array.isArray(parsed.titles) ? parsed.titles.slice(0, 12).map(sanitizeTitle) : [],
+      colorGrade: sanitizeColorGrade(parsed.colorGrade),
     }
   } catch {
-    return { ...DEFAULT_CREATIVE_SETTINGS }
+    return { ...DEFAULT_CREATIVE_SETTINGS, colorGrade: { ...DEFAULT_COLOR_GRADE } }
   }
 }
 
 export function saveCreativeSettings(projectId: string | null | undefined, settings: CreativeProjectSettings) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(settingsKey(projectId), JSON.stringify(settings))
-  window.dispatchEvent(new CustomEvent('maghrabi-creative-settings-changed', { detail: { projectId, settings } }))
+  const normalized = { ...settings, colorGrade: sanitizeColorGrade(settings.colorGrade) }
+  window.localStorage.setItem(settingsKey(projectId), JSON.stringify(normalized))
+  window.dispatchEvent(new CustomEvent('maghrabi-creative-settings-changed', { detail: { projectId, settings: normalized } }))
 }
 
 function professionalFields(title: CreativeTitle) {
@@ -288,7 +358,7 @@ export function applyCreativeSettingsToManifest(
     fadeOut: Math.max(Number(track.fadeOut || 0), settings.audioFadeOut),
   }))
 
-  return {
+  const enhanced = {
     ...manifest,
     clips,
     transition: settings.transition,
@@ -298,5 +368,7 @@ export function applyCreativeSettingsToManifest(
     audioTracks,
     audioDuckingEnabled: settings.audioDuckingEnabled,
     duckingStrength: clamp(settings.duckingStrength, 0, 1),
+    colorGrade: sanitizeColorGrade(settings.colorGrade),
   }
+  return enhanced as VideoProjectManifestV12
 }
