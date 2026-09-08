@@ -18,7 +18,6 @@ type LinkTab = { label: string; href: string; icon: typeof Film; creative?: neve
 type CreativeNavTab = { label: string; icon: typeof Film; creative: CreativeTab; href?: never; mixer?: never; masks?: never }
 type MixerNavTab = { label: string; icon: typeof Film; mixer: true; href?: never; creative?: never; masks?: never }
 type MasksNavTab = { label: string; icon: typeof Film; masks: true; href?: never; creative?: never; mixer?: never }
-
 type NavTab = LinkTab | CreativeNavTab | MixerNavTab | MasksNavTab
 
 const tabs: NavTab[] = [
@@ -50,57 +49,50 @@ function openMasks() {
   window.dispatchEvent(new CustomEvent('maghrabi-open-mask-suite'))
 }
 
+function NavAction({ tab, rail = false }: { tab: NavTab; rail?: boolean }) {
+  const Icon = tab.icon
+  const className = rail
+    ? `maghrabi-rail-tab${tab.label === 'MEDIA' ? ' is-active' : ''}`
+    : `maghrabi-creator-tab${tab.label === 'MEDIA' ? ' is-active' : ''}`
+  const content = <><Icon size={rail ? 17 : 16} /><span className={rail ? 'maghrabi-rail-label' : undefined}>{tab.label}</span></>
+
+  if ('mixer' in tab && tab.mixer) {
+    return <button type="button" className={className} onClick={openMixer} title={tab.label}>{content}</button>
+  }
+  if ('masks' in tab && tab.masks) {
+    return <button type="button" className={className} onClick={openMasks} title={tab.label}>{content}</button>
+  }
+  if ('creative' in tab && tab.creative) {
+    return <button type="button" className={className} onClick={() => openCreative(tab.creative)} title={tab.label}>{content}</button>
+  }
+  return <a href={tab.href} className={className} title={tab.label}>{content}</a>
+}
+
 export default function StudioWorkspaceNav() {
   return (
-    <div className="maghrabi-creator-nav" dir="ltr">
-      <div className="maghrabi-creator-brand">
-        <span className="maghrabi-creator-brand-mark"><WandSparkles size={15} /></span>
-        <span>
-          <strong>MAGHRABI STUDIO</strong>
-          <small>Creator Workspace</small>
-        </span>
+    <>
+      <div className="maghrabi-creator-nav" dir="ltr">
+        <div className="maghrabi-creator-brand">
+          <span className="maghrabi-creator-brand-mark"><WandSparkles size={15} /></span>
+          <span>
+            <strong>MAGHRABI STUDIO</strong>
+            <small>Creator Workspace</small>
+          </span>
+        </div>
+
+        <nav className="maghrabi-creator-tabs" aria-label="Creator workspace">
+          {tabs.map((tab) => <NavAction key={tab.label} tab={tab} />)}
+        </nav>
+
+        <a href="#deliver" className="maghrabi-creator-export">
+          <Send size={15} />
+          <span>EXPORT</span>
+        </a>
       </div>
 
-      <nav className="maghrabi-creator-tabs" aria-label="Creator workspace">
-        {tabs.map((tab) => {
-          const Icon = tab.icon
-          if ('mixer' in tab && tab.mixer) {
-            return (
-              <button key={tab.label} type="button" className="maghrabi-creator-tab" onClick={openMixer}>
-                <Icon size={16} />
-                <span>{tab.label}</span>
-              </button>
-            )
-          }
-          if ('masks' in tab && tab.masks) {
-            return (
-              <button key={tab.label} type="button" className="maghrabi-creator-tab" onClick={openMasks}>
-                <Icon size={16} />
-                <span>{tab.label}</span>
-              </button>
-            )
-          }
-          if ('creative' in tab && tab.creative) {
-            return (
-              <button key={tab.label} type="button" className="maghrabi-creator-tab" onClick={() => openCreative(tab.creative)}>
-                <Icon size={16} />
-                <span>{tab.label}</span>
-              </button>
-            )
-          }
-          return (
-            <a key={tab.label} href={tab.href} className={`maghrabi-creator-tab${tab.label === 'MEDIA' ? ' is-active' : ''}`}>
-              <Icon size={16} />
-              <span>{tab.label}</span>
-            </a>
-          )
-        })}
+      <nav className="maghrabi-creator-rail" aria-label="Creator tools" dir="ltr">
+        {tabs.map((tab) => <NavAction key={`rail-${tab.label}`} tab={tab} rail />)}
       </nav>
-
-      <a href="#deliver" className="maghrabi-creator-export">
-        <Send size={15} />
-        <span>EXPORT</span>
-      </a>
-    </div>
+    </>
   )
 }
