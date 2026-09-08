@@ -39,6 +39,7 @@ from .video_tools_v32_runtime import router as video_tools_v32_router, install_v
 from .video_tools_v33_runtime import router as video_tools_v33_router, install_v33
 from .video_tools_v34_runtime import router as video_tools_v34_router, install_v34
 from .video_tools_v40_runtime import router as video_tools_v40_router, install_v40
+from .video_tools_transition_library import install_transition_library
 from .video_tools_cut_transitions import install_cut_transition_engine
 from .video_tools_motion_keyframes import install_motion_keyframe_engine
 from .video_tools_color_grading import install_color_grading_engine
@@ -91,6 +92,11 @@ app.include_router(video_tools_v33_router)
 app.include_router(video_tools_v34_router)
 app.include_router(video_tools_v40_router)
 app.router.routes.extend(static_mounts)
+
+# Expand the shared FFmpeg xfade registry first. The per-cut engine imports the
+# same mutable registry object, so V12 receives the professional transition
+# library without changing legacy project contracts.
+install_transition_library()
 
 # Upgrade the shared V9 renderer used by V10/V11/V12 with per-cut transition
 # support. Projects without transitionOut metadata continue to use the proven
