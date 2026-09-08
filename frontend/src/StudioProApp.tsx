@@ -46,6 +46,7 @@ import './studioSequencePlayback.css'
 import './studioTransitionPreview.css'
 import './studioWorkspaceResize.css'
 import './studioTitlePreview.css'
+import './studioWorkspaceHero.css'
 
 export default function StudioProApp() {
   const [theme, setTheme] = useState<StudioThemeId>(() => getInitialStudioTheme())
