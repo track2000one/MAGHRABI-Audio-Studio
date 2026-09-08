@@ -42,6 +42,7 @@ from .video_tools_v40_runtime import router as video_tools_v40_router, install_v
 from .video_tools_transition_library import install_transition_library
 from .video_tools_cut_transitions import install_cut_transition_engine
 from .video_tools_motion_keyframes import install_motion_keyframe_engine
+from .video_tools_mask_tracking import install_mask_tracking_engine
 from .video_tools_color_grading import install_color_grading_engine
 from .video_tools_text_designer import install_text_designer_engine
 from .video_tools_transcript_captions import install_transcript_caption_engine
@@ -106,6 +107,11 @@ install_cut_transition_engine()
 # Extend the historical transform keyframes with professional rotation and
 # opacity motion while preserving the proven zoom/pan path.
 install_motion_keyframe_engine()
+
+# Upgrade clip-local privacy effects into animated rectangle/ellipse masks with
+# feathered compositing, keyframed geometry and background/spotlight modes.
+# This runs before timeline grading so masks remain attached to source motion.
+install_mask_tracking_engine()
 
 # Apply master LUT and grading after timeline/PIP composition. Text Designer is
 # installed after this hook so typography remains outside the color transform.
