@@ -1,0 +1,203 @@
+name: Transition Browser E2E Smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: transition-browser-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  transition-browser-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build exact production container
+        run: docker build -t maghrabi-transition-smoke:${GITHUB_SHA} .
+
+      - name: Generate adjacent clip fixtures
+        run: |
+          set -euo pipefail
+          mkdir -p transition-smoke
+          IMAGE="maghrabi-transition-smoke:${GITHUB_SHA}"
+          docker run --rm -v "$PWD/transition-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
+            -f lavfi -i "color=c=0x075985:s=640x360:r=30:d=1.8" \
+            -f lavfi -i "sine=frequency=420:sample_rate=48000:duration=1.8" \
+            -shortest -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k /work/left.mp4
+          docker run --rm -v "$PWD/transition-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
+            -f lavfi -i "color=c=0x7C3AED:s=640x360:r=30:d=1.8" \
+            -f lavfi -i "sine=frequency=720:sample_rate=48000:duration=1.8" \
+            -shortest -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k /work/right.mp4
+          test -s transition-smoke/left.mp4
+          test -s transition-smoke/right.mp4
+
+      - name: Start production API with ephemeral CI credentials
+        run: |
+          set -euo pipefail
+          IMAGE="maghrabi-transition-smoke:${GITHUB_SHA}"
+          ADMIN_PASSWORD=$(python -c 'import secrets; print(secrets.token_hex(18))')
+          AUTH_SECRET=$(python -c 'import secrets; print(secrets.token_hex(32))')
+          printf '%s' "$ADMIN_PASSWORD" > transition-smoke/admin-password.txt
+          docker run -d --name maghrabi-transition-e2e -p 18003:8000 \
+            -e ADMIN_USERNAME=transition-smoke-admin \
+            -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+            -e AUTH_SECRET="$AUTH_SECRET" \
+            -e DATA_DIR=/data \
+            -e ENABLE_API_DOCS=0 \
+            "$IMAGE"
+          READY=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:18003/api/health > transition-smoke/health.json; then READY=1; break; fi
+            sleep 2
+          done
+          test "$READY" = "1"
+          grep -q '"status":"ok"' transition-smoke/health.json
+
+      - name: Authenticate and enqueue advanced per-cut transition
+        run: |
+          set -euo pipefail
+          ADMIN_PASSWORD=$(cat transition-smoke/admin-password.txt)
+          python - <<'PY'
+          import json, os
+          password=open('transition-smoke/admin-password.txt').read()
+          json.dump({'username':'transition-smoke-admin','password':password}, open('transition-smoke/login-payload.json','w'))
+          PY
+          curl -fsS -c transition-smoke/cookies.txt \
+            -H 'Content-Type: application/json' \
+            --data-binary @transition-smoke/login-payload.json \
+            http://127.0.0.1:18003/api/auth/login > transition-smoke/login.json
+          grep -q '"authenticated":true' transition-smoke/login.json
+          cat > transition-smoke/manifest.json <<'JSON'
+          {
+            "clips":[
+              {
+                "fileIndex":0,
+                "start":0.0,
+                "end":1.70,
+                "speed":1.0,
+                "volume":1.0,
+                "filter":"none",
+                "text":"",
+                "textSize":48,
+                "textPosition":"bottom",
+                "rotation":0,
+                "fit":"contain",
+                "speedRamp":"off",
+                "timelineStartAt":0.0,
+                "transitionOut":{"type":"coverleft","duration":0.38,"easing":"smooth","direction":"left","rightFileIndex":1,"rightSourceStart":0.0}
+              },
+              {
+                "fileIndex":1,
+                "start":0.0,
+                "end":1.70,
+                "speed":1.0,
+                "volume":1.0,
+                "filter":"none",
+                "text":"",
+                "textSize":48,
+                "textPosition":"bottom",
+                "rotation":0,
+                "fit":"contain",
+                "speedRamp":"off",
+                "timelineStartAt":1.70
+              }
+            ],
+            "textTracks":[],
+            "subtitleTracks":[],
+            "audioTracks":[],
+            "imageTracks":[],
+            "videoOverlays":[],
+            "transition":"none",
+            "transitionDuration":0.30,
+            "audioDuckingEnabled":false,
+            "duckingStrength":0.50,
+            "magneticSnap":true
+          }
+          JSON
+          curl -fsS -b transition-smoke/cookies.txt \
+            -F 'video_files=@transition-smoke/left.mp4;type=video/mp4' \
+            -F 'video_files=@transition-smoke/right.mp4;type=video/mp4' \
+            -F 'manifest=<transition-smoke/manifest.json' \
+            -F 'output_size=720p' \
+            -F 'quality=draft' \
+            -F 'name=Transition Browser Cover Left Smoke' \
+            http://127.0.0.1:18003/api/video/v12/queue > transition-smoke/enqueue.json
+          python - <<'PY'
+          import json
+          payload=json.load(open('transition-smoke/enqueue.json'))
+          assert payload.get('id'), payload
+          open('transition-smoke/job-id.txt','w').write(payload['id'])
+          PY
+          rm -f transition-smoke/admin-password.txt transition-smoke/login-payload.json
+
+      - name: Wait for transition render and verify MP4
+        run: |
+          set -euo pipefail
+          JOB_ID=$(cat transition-smoke/job-id.txt)
+          STATUS=""
+          for attempt in $(seq 1 120); do
+            curl -fsS -b transition-smoke/cookies.txt http://127.0.0.1:18003/api/video/v12/jobs > transition-smoke/jobs.json
+            STATUS=$(JOB_ID="$JOB_ID" python - <<'PY'
+          import json, os
+          job_id=os.environ['JOB_ID']
+          jobs=json.load(open('transition-smoke/jobs.json')).get('jobs', [])
+          job=next((x for x in jobs if x.get('id')==job_id), {})
+          print(job.get('status','missing'))
+          PY
+            )
+            echo "transition render status: $STATUS"
+            if [ "$STATUS" = "done" ]; then break; fi
+            if [ "$STATUS" = "failed" ]; then cat transition-smoke/jobs.json; docker logs maghrabi-transition-e2e; exit 1; fi
+            sleep 2
+          done
+          test "$STATUS" = "done"
+          curl -fsS -b transition-smoke/cookies.txt \
+            http://127.0.0.1:18003/api/video/v12/jobs/${JOB_ID}/result \
+            -o transition-smoke/result.mp4
+          test -s transition-smoke/result.mp4
+          IMAGE="maghrabi-transition-smoke:${GITHUB_SHA}"
+          docker run --rm -v "$PWD/transition-smoke:/work" --entrypoint ffprobe "$IMAGE" \
+            -v error -show_entries format=duration -show_entries stream=codec_type,codec_name,width,height,channels,sample_rate \
+            -of json /work/result.mp4 > transition-smoke/ffprobe.json
+          python - <<'PY'
+          import json
+          payload=json.load(open('transition-smoke/ffprobe.json'))
+          duration=float(payload['format']['duration'])
+          streams=payload.get('streams',[])
+          assert duration > 2.5, duration
+          video=next(s for s in streams if s.get('codec_type')=='video')
+          audio=next(s for s in streams if s.get('codec_type')=='audio')
+          assert video.get('codec_name')=='h264', video
+          assert video.get('width')==1280 and video.get('height')==720, video
+          assert int(audio.get('sample_rate', 0))==48000, audio
+          print('transition-browser-coverleft-ok', duration)
+          PY
+
+      - name: Save transition smoke evidence
+        if: always()
+        run: |
+          docker logs maghrabi-transition-e2e > transition-smoke/container.log 2>&1 || true
+          docker rm -f maghrabi-transition-e2e >/dev/null 2>&1 || true
+          rm -f transition-smoke/admin-password.txt transition-smoke/login-payload.json
+
+      - name: Upload transition smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transition-browser-e2e-${{ github.sha }}
+          path: |
+            transition-smoke/manifest.json
+            transition-smoke/enqueue.json
+            transition-smoke/jobs.json
+            transition-smoke/ffprobe.json
+            transition-smoke/container.log
+          if-no-files-found: warn
+          retention-days: 14
