@@ -23,7 +23,7 @@ jobs:
       - name: Build exact production container
         run: docker build -t maghrabi-creator-smoke:${GITHUB_SHA} .
 
-      - name: Generate synthetic video and audio fixtures
+      - name: Generate synthetic video, audio and LUT fixtures
         run: |
           set -euo pipefail
           mkdir -p creator-smoke
@@ -39,9 +39,24 @@ jobs:
           docker run --rm -v "$PWD/creator-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
             -f lavfi -i "sine=frequency=220:sample_rate=48000:duration=3.2" \
             -c:a pcm_s16le /work/music.wav
+          cat > creator-smoke/master.cube <<'CUBE'
+          TITLE "MAGHRABI CI Identity LUT"
+          LUT_3D_SIZE 2
+          DOMAIN_MIN 0.0 0.0 0.0
+          DOMAIN_MAX 1.0 1.0 1.0
+          0.0 0.0 0.0
+          0.0 0.0 1.0
+          0.0 1.0 0.0
+          0.0 1.0 1.0
+          1.0 0.0 0.0
+          1.0 0.0 1.0
+          1.0 1.0 0.0
+          1.0 1.0 1.0
+          CUBE
           test -s creator-smoke/clip-a.mp4
           test -s creator-smoke/clip-b.mp4
           test -s creator-smoke/music.wav
+          test -s creator-smoke/master.cube
 
       - name: Start production API
         run: |
@@ -62,7 +77,7 @@ jobs:
           test "$READY" = "1"
           grep -q '"status":"ok"' creator-smoke/health.json
 
-      - name: Authenticate and enqueue professional dialogue render
+      - name: Authenticate and enqueue professional graded render
         run: |
           set -euo pipefail
           curl -fsS -c creator-smoke/cookies.txt \
@@ -164,17 +179,38 @@ jobs:
             "audioLimiterEnabled": true,
             "audioLimiterCeilingDb": -1.0,
             "audioNormalizeEnabled": true,
-            "audioTargetLufs": -16.0
+            "audioTargetLufs": -16.0,
+            "colorGrade": {
+              "enabled": true,
+              "exposure": 0.18,
+              "contrast": 1.08,
+              "highlights": -0.22,
+              "shadows": 0.14,
+              "whites": 0.04,
+              "blacks": -0.08,
+              "temperature": 0.10,
+              "tint": 0.04,
+              "saturation": 1.04,
+              "vibrance": 0.16,
+              "hue": 3.0,
+              "gamma": 1.02,
+              "curveShadows": -0.08,
+              "curveMidtones": 0.04,
+              "curveHighlights": 0.08,
+              "vignette": 0.10,
+              "sharpen": 0.18
+            }
           }
           JSON
           curl -fsS -b creator-smoke/cookies.txt \
             -F 'video_files=@creator-smoke/clip-a.mp4;type=video/mp4' \
             -F 'video_files=@creator-smoke/clip-b.mp4;type=video/mp4' \
             -F 'audio_files=@creator-smoke/music.wav;type=audio/wav' \
+            -F 'lut_file=@creator-smoke/master.cube;type=text/plain' \
             -F 'manifest=<creator-smoke/manifest.json' \
             -F 'output_size=720p' \
             -F 'quality=draft' \
-            -F 'name=Creator E2E Motion Text Smoke' \
+            -F 'name=Creator E2E Motion Text Color Grade Smoke' \
             http://127.0.0.1:18002/api/video/v12/queue > creator-smoke/enqueue.json
           python - <<'PY'
           import json
@@ -226,7 +262,7 @@ jobs:
           assert video.get('width')==1280 and video.get('height')==720, video
           assert int(audio.get('sample_rate', 0))==48000, audio
           assert int(audio.get('channels', 0))==2, audio
-          print('motion-text-render-ok', duration, streams)
+          print('motion-text-color-grade-render-ok', duration, streams)
           PY
 
       - name: Save creator smoke evidence
@@ -242,6 +278,7 @@ jobs:
           name: creator-editor-e2e-${{ github.sha }}
           path: |
             creator-smoke/manifest.json
+            creator-smoke/master.cube
             creator-smoke/enqueue.json
             creator-smoke/jobs.json
             creator-smoke/ffprobe.json
