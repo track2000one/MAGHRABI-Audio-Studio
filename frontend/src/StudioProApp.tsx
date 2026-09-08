@@ -10,6 +10,7 @@ import StudioAVSyncPro from './StudioAVSyncPro'
 import StudioClipFinishingPro from './StudioClipFinishingPro'
 import StudioColorGradingPro from './StudioColorGradingPro'
 import StudioCommandPalette from './StudioCommandPalette'
+import StudioCompositingPro from './StudioCompositingPro'
 import StudioCreativeSuite from './StudioCreativeSuite'
 import StudioDialogueCleanupPro from './StudioDialogueCleanupPro'
 import StudioEditingCorePro from './StudioEditingCorePro'
@@ -76,6 +77,7 @@ export default function StudioProApp() {
       <StudioClipFinishingPro />
       <StudioKeyframeEditorPro />
       <StudioEffectsMasksPro />
+      <StudioCompositingPro />
       <StudioColorGradingPro />
       <StudioTextDesignerPro />
       <StudioAudioMonitoringPro />
