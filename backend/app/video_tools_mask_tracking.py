@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
 
 from fastapi import HTTPException
 
-from .video_tools import _has_audio, _probe, _run_ffmpeg
+from .video_tools import _probe, _run_ffmpeg
 from .video_tools_v3 import _safe_clip
 from .video_tools_v5 import _render_advanced_clip as _legacy_render_advanced_clip
 from .video_tools_v5 import _validate_v5 as _legacy_validate_v5
@@ -194,8 +193,10 @@ def _render_masked_clip(source: Path, clip: dict, folder: Path, index: int, has_
     elif effect == "mosaic":
         divisor = max(6, round(8 + intensity * 30))
         filters.append("[trimmed]split=2[base][fxsrc]")
+        # Keep the scale dimensions comma-free. Unescaped commas inside max()
+        # can be interpreted as filter separators by FFmpeg's graph parser.
         filters.append(
-            f"[fxsrc]scale=max(2,iw/{divisor}):max(2,ih/{divisor}):flags=neighbor,"
+            f"[fxsrc]scale=iw/{divisor}:ih/{divisor}:flags=neighbor,"
             f"scale={width}:{height}:flags=neighbor[fx]"
         )
         fx_label = "fx"
