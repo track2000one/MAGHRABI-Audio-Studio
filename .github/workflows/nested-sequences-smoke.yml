@@ -1,0 +1,286 @@
+name: Nested Sequences 2.0 E2E Smoke
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: nested-sequences-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  nested-sequences-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build exact production container
+        run: docker build -t maghrabi-nested-smoke:${GITHUB_SHA} .
+
+      - name: Generate parent and child media fixtures
+        run: |
+          set -euo pipefail
+          mkdir -p nested-smoke
+          IMAGE="maghrabi-nested-smoke:${GITHUB_SHA}"
+
+          docker run --rm -v "$PWD/nested-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
+            -f lavfi -i "testsrc2=s=640x360:r=30:d=1.35" \
+            -f lavfi -i "sine=frequency=430:sample_rate=48000:duration=1.35" \
+            -shortest -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k /work/clip-a.mp4
+
+          docker run --rm -v "$PWD/nested-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
+            -f lavfi -i "color=c=0x2040b0:s=640x360:r=30:d=1.35" \
+            -f lavfi -i "sine=frequency=610:sample_rate=48000:duration=1.35" \
+            -vf "drawbox=x=80:y=70:w=220:h=160:color=white@0.75:t=fill" \
+            -shortest -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k /work/clip-b.mp4
+
+          docker run --rm -v "$PWD/nested-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
+            -f lavfi -i "color=c=0x9b2335:s=640x360:r=30:d=1.35" \
+            -f lavfi -i "sine=frequency=760:sample_rate=48000:duration=1.35" \
+            -vf "drawbox=x=300:y=95:w=180:h=180:color=yellow@0.80:t=fill" \
+            -shortest -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k /work/clip-c.mp4
+
+          docker run --rm -v "$PWD/nested-smoke:/work" --entrypoint ffmpeg "$IMAGE" -hide_banner -loglevel error -y \
+            -f lavfi -i "sine=frequency=920:sample_rate=48000:duration=2.45" \
+            -ac 2 -c:a pcm_s16le /work/nested-bed.wav
+
+          test -s nested-smoke/clip-a.mp4
+          test -s nested-smoke/clip-b.mp4
+          test -s nested-smoke/clip-c.mp4
+          test -s nested-smoke/nested-bed.wav
+
+      - name: Start production API with ephemeral CI credentials
+        run: |
+          set -euo pipefail
+          IMAGE="maghrabi-nested-smoke:${GITHUB_SHA}"
+          ADMIN_PASSWORD=$(python -c 'import secrets; print(secrets.token_hex(18))')
+          AUTH_SECRET=$(python -c 'import secrets; print(secrets.token_hex(32))')
+          printf '%s' "$ADMIN_PASSWORD" > nested-smoke/admin-password.txt
+          docker run -d --name maghrabi-nested-e2e -p 18006:8000 \
+            -e ADMIN_USERNAME=nested-smoke-admin \
+            -e ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+            -e AUTH_SECRET="$AUTH_SECRET" \
+            -e DATA_DIR=/data \
+            -e ENABLE_API_DOCS=0 \
+            "$IMAGE"
+          READY=0
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:18006/api/health > nested-smoke/health.json; then READY=1; break; fi
+            sleep 2
+          done
+          test "$READY" = "1"
+          grep -q '"status":"ok"' nested-smoke/health.json
+
+      - name: Authenticate and enqueue real nested sequence render
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          password=open('nested-smoke/admin-password.txt').read()
+          json.dump({'username':'nested-smoke-admin','password':password}, open('nested-smoke/login-payload.json','w'))
+          PY
+          curl -fsS -c nested-smoke/cookies.txt \
+            -H 'Content-Type: application/json' \
+            --data-binary @nested-smoke/login-payload.json \
+            http://127.0.0.1:18006/api/auth/login > nested-smoke/login.json
+          grep -q '"authenticated":true' nested-smoke/login.json
+
+          cat > nested-smoke/manifest.json <<'JSON'
+          {
+            "clips":[
+              {
+                "id":"parent-a","lane":"V1","fileIndex":0,
+                "startAt":0.0,"timelineStartAt":0.0,"start":0.0,"end":1.2,
+                "speed":1.0,"volume":0.72,"filter":"none","text":"","textSize":48,
+                "textPosition":"bottom","rotation":0,"fit":"contain","speedRamp":"off",
+                "audioFadeIn":0.04,"audioFadeOut":0.04,"transformKeyframes":[]
+              },
+              {
+                "id":"parent-b","lane":"V1","fileIndex":1,
+                "startAt":1.2,"timelineStartAt":1.2,"start":0.0,"end":1.2,
+                "speed":1.0,"volume":0.72,"filter":"none","text":"","textSize":48,
+                "textPosition":"bottom","rotation":0,"fit":"contain","speedRamp":"off",
+                "audioFadeIn":0.04,"audioFadeOut":0.04,"transformKeyframes":[]
+              },
+              {
+                "id":"parent-c","lane":"V1","fileIndex":2,
+                "startAt":2.4,"timelineStartAt":2.4,"start":0.0,"end":1.2,
+                "speed":1.0,"volume":0.90,"filter":"cinematic","text":"","textSize":48,
+                "textPosition":"bottom","rotation":0,"fit":"contain","speedRamp":"off",
+                "audioFadeIn":0.05,"audioFadeOut":0.05,"transformKeyframes":[]
+              }
+            ],
+            "textTracks":[
+              {
+                "text":"PARENT · NESTED 2.0","startAt":0.15,"endAt":3.35,"size":34,
+                "position":"top","color":"#ffffff","fontPreset":"sans-bold","align":"center",
+                "x":0.5,"y":0.10,"boxColor":"#000000","boxOpacity":0.26,"boxPadding":12,
+                "borderColor":"#000000","borderWidth":0,"shadowColor":"#000000","shadowDistance":2,
+                "lineSpacing":4,"animation":"fade"
+              }
+            ],
+            "subtitleTracks":[],
+            "audioTracks":[],
+            "imageTracks":[],
+            "videoOverlays":[],
+            "transition":"none",
+            "transitionDuration":0.10,
+            "audioDuckingEnabled":false,
+            "duckingStrength":0.50,
+            "magneticSnap":true,
+            "colorGrade":{
+              "enabled":true,"exposure":0.08,"contrast":1.04,"highlights":-0.08,"shadows":0.06,
+              "whites":0.02,"blacks":-0.03,"temperature":0.03,"tint":0.01,"saturation":1.02,
+              "vibrance":0.08,"hue":0.0,"gamma":1.0,"curveShadows":-0.02,"curveMidtones":0.02,
+              "curveHighlights":0.03,"vignette":0.04,"sharpen":0.08
+            },
+            "compoundSequences":[
+              {
+                "id":"compound-first-two",
+                "name":"Nested Reordered Opening",
+                "enabled":true,
+                "parentStartAt":0.0,
+                "duration":2.4,
+                "manifest":{
+                  "clips":[
+                    {
+                      "fileIndex":1,"timelineStartAt":0.0,"start":0.0,"end":1.2,
+                      "speed":1.0,"volume":0.55,"filter":"cool","text":"","textSize":48,
+                      "textPosition":"bottom","rotation":0,"fit":"contain","speedRamp":"off",
+                      "audioFadeIn":0.05,"audioFadeOut":0.05,"transformKeyframes":[]
+                    },
+                    {
+                      "fileIndex":0,"timelineStartAt":1.2,"start":0.0,"end":1.2,
+                      "speed":1.0,"volume":0.55,"filter":"warm","text":"","textSize":48,
+                      "textPosition":"bottom","rotation":0,"fit":"contain","speedRamp":"off",
+                      "audioFadeIn":0.05,"audioFadeOut":0.05,"transformKeyframes":[]
+                    }
+                  ],
+                  "textTracks":[],
+                  "subtitleTracks":[],
+                  "imageTracks":[],
+                  "videoOverlays":[
+                    {
+                      "fileIndex":2,"startAt":0.30,"endAt":1.10,"sourceStart":0.0,"sourceEnd":0.80,
+                      "scale":0.34,"opacity":0.82,"x":0.58,"y":0.54,"borderRadius":0.04,
+                      "audioEnabled":false,"audioVolume":0.0
+                    }
+                  ],
+                  "audioTracks":[
+                    {
+                      "fileIndex":0,"startAt":0.10,"sourceStart":0.0,"sourceEnd":2.20,
+                      "volume":0.22,"fadeIn":0.12,"fadeOut":0.18,"automation":[],
+                      "mixerGain":0.90,"pan":0.12,"muted":false,"solo":false
+                    }
+                  ],
+                  "transition":"none",
+                  "transitionDuration":0.10,
+                  "audioDuckingEnabled":false,
+                  "duckingStrength":0.50,
+                  "magneticSnap":true
+                }
+              }
+            ]
+          }
+          JSON
+
+          curl -fsS -b nested-smoke/cookies.txt \
+            -F 'video_files=@nested-smoke/clip-a.mp4;type=video/mp4' \
+            -F 'video_files=@nested-smoke/clip-b.mp4;type=video/mp4' \
+            -F 'video_files=@nested-smoke/clip-c.mp4;type=video/mp4' \
+            -F 'audio_files=@nested-smoke/nested-bed.wav;type=audio/wav' \
+            -F 'manifest=<nested-smoke/manifest.json' \
+            -F 'output_size=720p' \
+            -F 'quality=draft' \
+            -F 'name=Nested Sequences 2.0 Real Flatten Smoke' \
+            http://127.0.0.1:18006/api/video/v12/queue > nested-smoke/enqueue.json
+
+          python - <<'PY'
+          import json
+          payload=json.load(open('nested-smoke/enqueue.json'))
+          assert payload.get('id'), payload
+          open('nested-smoke/job-id.txt','w').write(payload['id'])
+          print('nested queued', payload['id'], payload.get('status'))
+          PY
+          rm -f nested-smoke/admin-password.txt nested-smoke/login-payload.json
+
+      - name: Wait for nested flatten render and verify final MP4
+        run: |
+          set -euo pipefail
+          JOB_ID=$(cat nested-smoke/job-id.txt)
+          STATUS=""
+          for attempt in $(seq 1 180); do
+            curl -fsS -b nested-smoke/cookies.txt http://127.0.0.1:18006/api/video/v12/jobs > nested-smoke/jobs.json
+            STATUS=$(JOB_ID="$JOB_ID" python - <<'PY'
+          import json, os
+          job_id=os.environ['JOB_ID']
+          jobs=json.load(open('nested-smoke/jobs.json')).get('jobs', [])
+          job=next((x for x in jobs if x.get('id')==job_id), {})
+          print(job.get('status','missing'))
+          PY
+            )
+            echo "nested render status: $STATUS"
+            if [ "$STATUS" = "done" ]; then break; fi
+            if [ "$STATUS" = "failed" ]; then cat nested-smoke/jobs.json; docker logs maghrabi-nested-e2e; exit 1; fi
+            sleep 2
+          done
+          test "$STATUS" = "done"
+
+          curl -fsS -b nested-smoke/cookies.txt \
+            http://127.0.0.1:18006/api/video/v12/jobs/${JOB_ID}/result \
+            -o nested-smoke/result.mp4
+          test -s nested-smoke/result.mp4
+
+          IMAGE="maghrabi-nested-smoke:${GITHUB_SHA}"
+          docker run --rm -v "$PWD/nested-smoke:/work" --entrypoint ffprobe "$IMAGE" \
+            -v error -show_entries format=duration -show_entries stream=codec_type,codec_name,width,height,channels,sample_rate \
+            -of json /work/result.mp4 > nested-smoke/ffprobe.json
+
+          python - <<'PY'
+          import json
+          payload=json.load(open('nested-smoke/ffprobe.json'))
+          duration=float(payload['format']['duration'])
+          streams=payload.get('streams',[])
+          assert 3.35 < duration < 3.95, duration
+          video=next(s for s in streams if s.get('codec_type')=='video')
+          audio=next(s for s in streams if s.get('codec_type')=='audio')
+          assert video.get('codec_name')=='h264', video
+          assert video.get('width')==1280 and video.get('height')==720, video
+          assert int(audio.get('sample_rate',0))==48000, audio
+          assert int(audio.get('channels',0))==2, audio
+          print('nested-sequences-2.0-ok', duration)
+          PY
+
+          docker logs maghrabi-nested-e2e > nested-smoke/container.log 2>&1 || true
+          grep -q 'nested:compound-first-two' nested-smoke/container.log || {
+            echo 'Nested child render marker missing from production logs'
+            cat nested-smoke/container.log
+            exit 1
+          }
+
+      - name: Save nested sequence smoke evidence
+        if: always()
+        run: |
+          docker logs maghrabi-nested-e2e > nested-smoke/container.log 2>&1 || true
+          docker rm -f maghrabi-nested-e2e >/dev/null 2>&1 || true
+          rm -f nested-smoke/admin-password.txt nested-smoke/login-payload.json
+
+      - name: Upload nested sequence smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nested-sequences-e2e-${{ github.sha }}
+          path: |
+            nested-smoke/manifest.json
+            nested-smoke/enqueue.json
+            nested-smoke/jobs.json
+            nested-smoke/ffprobe.json
+            nested-smoke/container.log
+          if-no-files-found: warn
+          retention-days: 14
