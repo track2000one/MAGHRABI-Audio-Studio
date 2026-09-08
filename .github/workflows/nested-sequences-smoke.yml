@@ -258,8 +258,8 @@ jobs:
           PY
 
           docker logs maghrabi-nested-e2e > nested-smoke/container.log 2>&1 || true
-          grep -q 'nested:compound-first-two' nested-smoke/container.log || {
-            echo 'Nested child render marker missing from production logs'
+          grep -q 'nested_sequence_child_render_complete sequence_id=compound-first-two' nested-smoke/container.log || {
+            echo 'Explicit Nested child render marker missing from production logs'
             cat nested-smoke/container.log
             exit 1
           }
