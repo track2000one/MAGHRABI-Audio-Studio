@@ -1,5 +1,6 @@
 import {
   Captions,
+  Crosshair,
   Film,
   Gauge,
   Grid2X2,
@@ -13,11 +14,12 @@ import {
 } from 'lucide-react'
 import type { CreativeTab } from './lib/creativeProjectSettings'
 
-type LinkTab = { label: string; href: string; icon: typeof Film; creative?: never; mixer?: never }
-type CreativeNavTab = { label: string; icon: typeof Film; creative: CreativeTab; href?: never; mixer?: never }
-type MixerNavTab = { label: string; icon: typeof Film; mixer: true; href?: never; creative?: never }
+type LinkTab = { label: string; href: string; icon: typeof Film; creative?: never; mixer?: never; masks?: never }
+type CreativeNavTab = { label: string; icon: typeof Film; creative: CreativeTab; href?: never; mixer?: never; masks?: never }
+type MixerNavTab = { label: string; icon: typeof Film; mixer: true; href?: never; creative?: never; masks?: never }
+type MasksNavTab = { label: string; icon: typeof Film; masks: true; href?: never; creative?: never; mixer?: never }
 
-type NavTab = LinkTab | CreativeNavTab | MixerNavTab
+type NavTab = LinkTab | CreativeNavTab | MixerNavTab | MasksNavTab
 
 const tabs: NavTab[] = [
   { label: 'MEDIA', href: '#video', icon: Film },
@@ -25,6 +27,7 @@ const tabs: NavTab[] = [
   { label: 'TITLES', creative: 'titles', icon: Captions },
   { label: 'TRANSITIONS', creative: 'transitions', icon: Layers3 },
   { label: 'EFFECTS', creative: 'looks', icon: Sparkles },
+  { label: 'MASKS', masks: true, icon: Crosshair },
   { label: 'SPEED', creative: 'speed', icon: Gauge },
   { label: 'MIX', mixer: true, icon: SlidersHorizontal },
   { label: 'ELEMENTS', href: '#video-v5', icon: Images },
@@ -41,6 +44,10 @@ function openCreative(tab: CreativeTab) {
 
 function openMixer() {
   window.dispatchEvent(new CustomEvent('maghrabi-open-audio-mixer'))
+}
+
+function openMasks() {
+  window.dispatchEvent(new CustomEvent('maghrabi-open-mask-suite'))
 }
 
 export default function StudioWorkspaceNav() {
@@ -60,6 +67,14 @@ export default function StudioWorkspaceNav() {
           if ('mixer' in tab && tab.mixer) {
             return (
               <button key={tab.label} type="button" className="maghrabi-creator-tab" onClick={openMixer}>
+                <Icon size={16} />
+                <span>{tab.label}</span>
+              </button>
+            )
+          }
+          if ('masks' in tab && tab.masks) {
+            return (
+              <button key={tab.label} type="button" className="maghrabi-creator-tab" onClick={openMasks}>
                 <Icon size={16} />
                 <span>{tab.label}</span>
               </button>
