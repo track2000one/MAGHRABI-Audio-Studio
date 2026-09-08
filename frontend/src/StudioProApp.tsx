@@ -8,6 +8,7 @@ import StudioAudioScrubShuttlePro from './StudioAudioScrubShuttlePro'
 import StudioAudioTimelinePro from './StudioAudioTimelinePro'
 import StudioAVSyncPro from './StudioAVSyncPro'
 import StudioClipFinishingPro from './StudioClipFinishingPro'
+import StudioColorGradingPro from './StudioColorGradingPro'
 import StudioCommandPalette from './StudioCommandPalette'
 import StudioCreativeSuite from './StudioCreativeSuite'
 import StudioDialogueCleanupPro from './StudioDialogueCleanupPro'
@@ -71,6 +72,7 @@ export default function StudioProApp() {
       <StudioCreativeSuite />
       <StudioClipFinishingPro />
       <StudioKeyframeEditorPro />
+      <StudioColorGradingPro />
       <StudioTextDesignerPro />
       <StudioAudioMonitoringPro />
       <StudioAudioScrubShuttlePro />
