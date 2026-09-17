@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.stem_progress import demucs_progress_state, demucs_stall_reason, extract_demucs_percent
+from app.stem_queue import choose_active_job, find_duplicate_pending_job, queue_position
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data")).resolve()
 JOBS_DIR = DATA_DIR / "jobs"
@@ -44,7 +45,7 @@ executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="audio
 store_lock = threading.Lock()
 active_lock = threading.Lock()
 active_jobs: set[str] = set()
-app = FastAPI(title="MAGHRABI Audio Studio API", version="0.3.0")
+app = FastAPI(title="MAGHRABI Audio Studio API", version="0.3.1")
 
 
 class LoginRequest(BaseModel):
@@ -61,6 +62,8 @@ class JobResponse(BaseModel):
     stage: str = "queued"
     message: str
     elapsed_seconds: int = 0
+    queued_seconds: int = 0
+    queue_position: int = 0
     stems: dict[str, str]
     error: str | None = None
 
@@ -186,6 +189,47 @@ def update_state(job_id: str, **changes) -> dict:
     return state
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def all_job_states() -> list[dict]:
+    states: list[dict] = []
+    for path in JOBS_DIR.glob("*/job.json"):
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(state.get("queued_at"), (int, float)):
+                state["queued_at"] = path.stat().st_mtime
+            states.append(state)
+        except Exception as exc:
+            print(f"[queue] skipped unreadable state {path}: {exc}", flush=True)
+    return states
+
+
+def backfill_pending_hashes(states: list[dict]) -> list[dict]:
+    refreshed: list[dict] = []
+    for state in states:
+        if state.get("status") not in {"queued", "processing"} or state.get("content_sha256"):
+            refreshed.append(state)
+            continue
+        input_path = Path(str(state.get("input_path", "")))
+        if not input_path.exists():
+            refreshed.append(state)
+            continue
+        try:
+            content_sha256 = sha256_file(input_path)
+            state = update_state(state["id"], content_sha256=content_sha256)
+            refreshed.append(state)
+        except Exception as exc:
+            print(f"[queue] could not fingerprint {state.get('id')}: {exc}", flush=True)
+            refreshed.append(state)
+    return refreshed
+
+
 def elapsed_seconds_for(state: dict) -> int:
     if state.get("status") in {"completed", "failed"}:
         return int(state.get("elapsed_seconds", 0) or 0)
@@ -195,12 +239,35 @@ def elapsed_seconds_for(state: dict) -> int:
     return 0
 
 
-def public_state(state: dict) -> dict:
+def queued_seconds_for(state: dict) -> int:
+    queued_at = state.get("queued_at")
+    if not isinstance(queued_at, (int, float)):
+        return 0
+    started_at = state.get("started_at")
+    end_at = started_at if isinstance(started_at, (int, float)) else time.time()
+    return max(0, int(end_at - queued_at))
+
+
+def public_state(state: dict, *, states: list[dict] | None = None) -> dict:
     public = dict(state)
     public.pop("input_path", None)
     public.pop("started_at", None)
+    public.pop("queued_at", None)
+    public.pop("content_sha256", None)
     public["elapsed_seconds"] = elapsed_seconds_for(state)
+    public["queued_seconds"] = queued_seconds_for(state)
     public.setdefault("stage", "queued")
+    if state.get("status") == "queued":
+        current_states = states if states is not None else all_job_states()
+        position = queue_position(current_states, str(state["id"]))
+        public["queue_position"] = position
+        if position > 0:
+            public["message"] = (
+                f"المهمة في قائمة الانتظار — ترتيبها {position}. "
+                "ستبدأ تلقائياً فور توفر عامل المعالجة."
+            )
+    else:
+        public["queue_position"] = 0
     public["stems"] = {
         name: f"/api/jobs/{state['id']}/files/{Path(path).name}"
         for name, path in state.get("stems", {}).items()
@@ -332,6 +399,9 @@ def run_separation(job_id: str) -> None:
     print(f"[worker] starting job {job_id}", flush=True)
     try:
         state = read_state(job_id)
+        if state.get("status") not in {"queued", "processing"}:
+            print(f"[worker] skipping inactive job {job_id} status={state.get('status')}", flush=True)
+            return
         input_path = Path(state["input_path"])
         if not input_path.exists():
             raise RuntimeError("الملف الأصلي للمهمة غير موجود.")
@@ -489,19 +559,49 @@ def submit_job(job_id: str, *, recovered: bool = False) -> bool:
 
 
 def recover_pending_jobs() -> None:
-    recovered_count = 0
-    for path in JOBS_DIR.glob("*/job.json"):
-        try:
-            state = json.loads(path.read_text(encoding="utf-8"))
-            if state.get("status") not in {"queued", "processing"}:
+    states = backfill_pending_hashes(all_job_states())
+    pending = [state for state in states if state.get("status") in {"queued", "processing"}]
+    keep_ids: set[str] = set()
+    grouped: dict[tuple[str, str], list[dict]] = {}
+    ungrouped: list[dict] = []
+
+    for state in pending:
+        content_sha256 = state.get("content_sha256")
+        mode = state.get("mode")
+        if isinstance(content_sha256, str) and content_sha256 and isinstance(mode, str):
+            grouped.setdefault((content_sha256, mode), []).append(state)
+        else:
+            ungrouped.append(state)
+
+    for group in grouped.values():
+        canonical = choose_active_job(group)
+        if canonical:
+            keep_ids.add(str(canonical["id"]))
+        for state in group:
+            if canonical and state.get("id") == canonical.get("id"):
                 continue
+            update_state(
+                state["id"],
+                status="failed",
+                stage="failed",
+                message="تم إلغاء مهمة مكررة؛ توجد مهمة مطابقة قيد التنفيذ أو الانتظار.",
+                error="duplicate-pending-job",
+            )
+
+    keep_ids.update(str(state["id"]) for state in ungrouped)
+    recoverable = [state for state in pending if str(state.get("id")) in keep_ids]
+    recoverable.sort(key=lambda state: (float(state.get("queued_at", 0) or 0), str(state.get("id", ""))))
+
+    recovered_count = 0
+    for state in recoverable:
+        try:
             input_path = Path(state.get("input_path", ""))
             if not input_path.exists():
                 continue
             if submit_job(state["id"], recovered=True):
                 recovered_count += 1
         except Exception as exc:
-            print(f"[worker] recovery skipped {path}: {exc}", flush=True)
+            print(f"[worker] recovery skipped {state.get('id')}: {exc}", flush=True)
     print(f"[worker] recovery finished, jobs restored: {recovered_count}", flush=True)
 
 
@@ -523,7 +623,7 @@ def health() -> dict:
         "active_jobs": active,
         "max_workers": MAX_WORKERS,
         "auth_configured": auth_configured(),
-        "api_version": "0.3.0",
+        "api_version": "0.3.1",
     }
 
 
@@ -543,6 +643,7 @@ async def create_job(
     folder.mkdir(parents=True, exist_ok=True)
     input_path = folder / f"original{extension}"
     size = 0
+    digest = hashlib.sha256()
     chunk_size = 1024 * 1024
     with input_path.open("wb") as output:
         while chunk := await file.read(chunk_size):
@@ -550,10 +651,21 @@ async def create_job(
             if size > MAX_UPLOAD_MB * 1024 * 1024:
                 output.close()
                 input_path.unlink(missing_ok=True)
+                shutil.rmtree(folder, ignore_errors=True)
                 raise HTTPException(status_code=413, detail=f"الحد الأعلى لحجم الملف هو {MAX_UPLOAD_MB} MB.")
+            digest.update(chunk)
             output.write(chunk)
     await file.close()
 
+    content_sha256 = digest.hexdigest()
+    states = backfill_pending_hashes(all_job_states())
+    duplicate = find_duplicate_pending_job(states, content_sha256=content_sha256, mode=mode)
+    if duplicate is not None:
+        shutil.rmtree(folder, ignore_errors=True)
+        existing = read_state(str(duplicate["id"]))
+        return JobResponse(**public_state(existing, states=all_job_states()))
+
+    queued_at = time.time()
     state = {
         "id": job_id,
         "original_name": original_name,
@@ -563,6 +675,8 @@ async def create_job(
         "progress": 5,
         "message": "تم رفع الملف وإضافته إلى قائمة المعالجة.",
         "input_path": str(input_path),
+        "content_sha256": content_sha256,
+        "queued_at": queued_at,
         "started_at": None,
         "elapsed_seconds": 0,
         "stems": {},
@@ -584,9 +698,19 @@ async def create_job(
     return JobResponse(**public_state(read_state(job_id)))
 
 
+@app.get("/api/jobs/active")
+def get_active_job(_username: str = Depends(require_auth)) -> dict:
+    states = all_job_states()
+    active = choose_active_job(states)
+    if active is None:
+        return {"job": None}
+    return {"job": public_state(read_state(str(active["id"])), states=states)}
+
+
 @app.get("/api/jobs/{job_id}", response_model=JobResponse)
 def get_job(job_id: str, _username: str = Depends(require_auth)) -> JobResponse:
-    return JobResponse(**public_state(read_state(job_id)))
+    states = all_job_states()
+    return JobResponse(**public_state(read_state(job_id), states=states))
 
 
 @app.get("/api/jobs/{job_id}/files/{filename}")
