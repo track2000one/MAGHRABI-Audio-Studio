@@ -48,6 +48,11 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=python-builder /opt/venv /opt/venv
 COPY backend/app ./app
+# Overlay only Demucs' CLI entry point. The package path is extended to the
+# pinned site-packages Demucs 4.0.1 implementation, while __main__ routes WAV
+# output through app.demucs_compat so stem export does not depend on an
+# optional TorchAudio writer backend.
+COPY backend/demucs_overlay ./demucs
 COPY --from=frontend-builder /frontend/dist ./static
 RUN mkdir -p /data/.cache/torch /data/tools /data/video
 

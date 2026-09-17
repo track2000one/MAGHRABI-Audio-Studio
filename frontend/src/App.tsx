@@ -33,6 +33,7 @@ import {
 import {
   AuthStatus,
   createSeparationJob,
+  getActiveJob,
   getAuthStatus,
   getJob,
   JobResponse,
@@ -278,22 +279,71 @@ function Studio({ username, onLogout }: { username: string; onLogout: () => void
   const [mode, setMode] = useState<'2stems' | '4stems'>('4stems')
   const [job, setJob] = useState<JobResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pollWarning, setPollWarning] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [restoring, setRestoring] = useState(true)
   const isProcessing = job?.status === 'queued' || job?.status === 'processing'
+  const hasSource = Boolean(file || job)
+
+  useEffect(() => {
+    let cancelled = false
+    getActiveJob()
+      .then((activeJob) => {
+        if (cancelled || !activeJob) return
+        setJob(activeJob)
+        setMode(activeJob.mode)
+      })
+      .catch((restoreError) => {
+        if (!cancelled) {
+          setPollWarning(
+            restoreError instanceof Error
+              ? restoreError.message
+              : 'تعذر التحقق من المهمة الحالية على الخادم.',
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRestoring(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!job || !isProcessing) return
-    const timer = window.setInterval(async () => {
+    let cancelled = false
+    let timer: number | undefined
+
+    const poll = async () => {
       try {
         const next = await getJob(job.id)
+        if (cancelled) return
         setJob(next)
+        setPollWarning(null)
         if (next.status === 'failed') setError(next.error || 'فشلت معالجة الملف.')
       } catch (pollError) {
-        console.error(pollError)
+        if (!cancelled) {
+          setPollWarning(
+            pollError instanceof Error
+              ? pollError.message
+              : 'تعذر تحديث حالة المعالجة مؤقتاً. سنحاول مجدداً تلقائياً.',
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          const delay = job.status === 'queued' ? 3000 : 2500
+          timer = window.setTimeout(poll, delay)
+        }
       }
-    }, 1500)
-    return () => window.clearInterval(timer)
-  }, [job?.id, isProcessing])
+    }
+
+    timer = window.setTimeout(poll, 900)
+    return () => {
+      cancelled = true
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [job?.id, job?.status, isProcessing])
 
   const stems = useMemo(() => {
     if (!job?.stems) return []
@@ -303,13 +353,14 @@ function Studio({ username, onLogout }: { username: string; onLogout: () => void
   }, [job])
 
   const acceptFile = (candidate?: File) => {
-    if (!candidate) return
+    if (!candidate || isProcessing) return
     const extensionOk = /\.(mp3|wav|flac|m4a|aac|ogg)$/i.test(candidate.name)
     if (!candidate.type.startsWith('audio/') && !extensionOk) {
       setError('الصيغة غير مدعومة. استخدم MP3 أو WAV أو FLAC أو M4A أو AAC أو OGG.')
       return
     }
     setError(null)
+    setPollWarning(null)
     setFile(candidate)
     setJob(null)
   }
@@ -317,15 +368,18 @@ function Studio({ username, onLogout }: { username: string; onLogout: () => void
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => acceptFile(event.target.files?.[0])
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
-    acceptFile(event.dataTransfer.files?.[0])
+    if (!hasSource) acceptFile(event.dataTransfer.files?.[0])
   }
 
   const start = async () => {
-    if (!file) return
+    if (!file || isProcessing) return
     setBusy(true)
     setError(null)
+    setPollWarning(null)
     try {
-      setJob(await createSeparationJob(file, mode))
+      const next = await createSeparationJob(file, mode)
+      setJob(next)
+      setMode(next.mode)
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'تعذر بدء المعالجة.')
     } finally {
@@ -334,11 +388,21 @@ function Studio({ username, onLogout }: { username: string; onLogout: () => void
   }
 
   const reset = () => {
+    if (isProcessing) return
     setFile(null)
     setJob(null)
     setError(null)
+    setPollWarning(null)
     if (inputRef.current) inputRef.current.value = ''
   }
+
+  const sourceName = file?.name || job?.original_name || ''
+  const sourceDetail = file
+    ? formatSize(file.size)
+    : job
+      ? 'مهمة محفوظة وتعمل على الخادم'
+      : ''
+  const queued = job?.status === 'queued'
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#070b14] text-slate-100">
@@ -403,9 +467,9 @@ function Studio({ username, onLogout }: { username: string; onLogout: () => void
             <div
               onDragOver={(event) => event.preventDefault()}
               onDrop={onDrop}
-              onClick={() => !file && inputRef.current?.click()}
+              onClick={() => !hasSource && !restoring && inputRef.current?.click()}
               className={`relative min-h-[390px] rounded-[22px] border border-dashed p-6 transition sm:p-8 ${
-                file
+                hasSource
                   ? 'border-indigo-300/25 bg-[#0b1120]'
                   : 'cursor-pointer border-white/15 bg-[#0a0f1b] hover:border-cyan-300/40 hover:bg-[#0b1220]'
               }`}
@@ -417,7 +481,12 @@ function Studio({ username, onLogout }: { username: string; onLogout: () => void
                 className="hidden"
                 onChange={onFileChange}
               />
-              {!file ? (
+              {restoring ? (
+                <div className="flex min-h-[330px] flex-col items-center justify-center text-center">
+                  <Activity className="h-8 w-8 animate-spin text-cyan-300" />
+                  <p className="mt-4 text-sm font-bold text-slate-300">جاري التحقق من مهمة المعالجة الحالية...</p>
+                </div>
+              ) : !hasSource ? (
                 <div className="flex min-h-[330px] flex-col items-center justify-center text-center">
                   <div className="grid h-20 w-20 place-items-center rounded-3xl border border-cyan-300/15 bg-cyan-300/[.06]">
                     <UploadCloud className="h-9 w-9 text-cyan-300" />
@@ -435,8 +504,8 @@ function Studio({ username, onLogout }: { username: string; onLogout: () => void
                     <div className="flex min-w-0 items-center gap-3">
                       <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-indigo-400/10 text-indigo-200"><FileAudio /></div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-white">{file.name}</p>
-                        <p className="mt-1 text-xs text-slate-500">{formatSize(file.size)}</p>
+                        <p className="truncate text-sm font-black text-white">{sourceName}</p>
+                        <p className="mt-1 text-xs text-slate-500">{sourceDetail}</p>
                       </div>
                     </div>
                     <button
@@ -444,14 +513,15 @@ function Studio({ username, onLogout }: { username: string; onLogout: () => void
                         event.stopPropagation()
                         reset()
                       }}
-                      className="rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-white"
-                      title="ملف جديد"
+                      disabled={isProcessing}
+                      className="rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                      title={isProcessing ? 'لا يمكن تغيير الملف أثناء المعالجة' : 'ملف جديد'}
                     >
                       <RotateCcw className="h-4 w-4" />
                     </button>
                   </div>
 
-                  {!job && (
+                  {!job && file && (
                     <>
                       <div className="mt-5">
                         <p className="mb-3 text-xs font-bold text-slate-400">نوع الفصل</p>
@@ -487,22 +557,40 @@ function Studio({ username, onLogout }: { username: string; onLogout: () => void
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <div className="flex items-center gap-2 text-sm font-black">
-                            <Activity className="h-4 w-4 animate-pulse text-cyan-300" />
+                            <Activity className={`h-4 w-4 text-cyan-300 ${job.status !== 'failed' ? 'animate-pulse' : ''}`} />
                             {stageMeta[job.stage] || 'جاري المعالجة'}
                           </div>
                           <p className="mt-1 text-xs leading-5 text-slate-500">{job.message}</p>
                         </div>
-                        <span className="text-sm font-black tabular-nums text-cyan-300">{job.progress}%</span>
+                        <span className="text-sm font-black tabular-nums text-cyan-300">
+                          {queued
+                            ? job.queue_position > 0
+                              ? `انتظار #${job.queue_position}`
+                              : 'انتظار'
+                            : `${job.progress}%`}
+                        </span>
                       </div>
                       <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-l from-indigo-500 to-cyan-400 transition-all duration-700"
-                          style={{ width: `${job.progress}%` }}
-                        />
+                        {queued ? (
+                          <div className="h-full w-full animate-pulse rounded-full bg-gradient-to-l from-indigo-500/35 via-cyan-400/70 to-indigo-500/35" />
+                        ) : (
+                          <div
+                            className="h-full rounded-full bg-gradient-to-l from-indigo-500 to-cyan-400 transition-all duration-700"
+                            style={{ width: `${job.progress}%` }}
+                          />
+                        )}
                       </div>
+                      {pollWarning && (
+                        <p className="mt-3 rounded-xl border border-amber-300/10 bg-amber-300/[.04] px-3 py-2 text-[11px] leading-5 text-amber-200/80">
+                          {pollWarning} — ستتم إعادة المحاولة تلقائياً.
+                        </p>
+                      )}
                       <div className="mt-4 flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5" /> الوقت المنقضي {formatTime(job.elapsed_seconds || 0)}</span>
-                        <span>CPU Processing</span>
+                        <span className="flex items-center gap-1.5">
+                          <Clock3 className="h-3.5 w-3.5" />
+                          {queued ? 'وقت الانتظار' : 'الوقت المنقضي'} {formatTime(queued ? job.queued_seconds || 0 : job.elapsed_seconds || 0)}
+                        </span>
+                        <span>{queued ? 'في انتظار عامل المعالجة' : job.status === 'failed' ? 'PROCESSING STOPPED' : 'CPU Processing'}</span>
                       </div>
                     </div>
                   )}
