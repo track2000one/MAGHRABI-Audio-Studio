@@ -5,15 +5,20 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MAIN = ROOT / "backend" / "app" / "main.py"
+DOCKERFILE = ROOT / "Dockerfile"
 COMPAT = ROOT / "backend" / "app" / "demucs_compat.py"
+OVERLAY_INIT = ROOT / "backend" / "demucs_overlay" / "__init__.py"
+OVERLAY_MAIN = ROOT / "backend" / "demucs_overlay" / "__main__.py"
 
 
 class DemucsWavBackendTests(unittest.TestCase):
-    def test_worker_uses_compat_runner_instead_of_broken_torchaudio_cli_save(self) -> None:
-        source = MAIN.read_text(encoding="utf-8")
-        self.assertIn('"-m",\n            "app.demucs_compat"', source)
-        self.assertNotIn('"-m",\n            "demucs",', source)
+    def test_runtime_overlays_demucs_cli_entry_point(self) -> None:
+        dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+        overlay_init = OVERLAY_INIT.read_text(encoding="utf-8")
+        overlay_main = OVERLAY_MAIN.read_text(encoding="utf-8")
+        self.assertIn("COPY backend/demucs_overlay ./demucs", dockerfile)
+        self.assertIn("extend_path", overlay_init)
+        self.assertIn("from app.demucs_compat import main", overlay_main)
 
     def test_compat_runner_writes_pcm_wav_without_torchaudio_save(self) -> None:
         source = COMPAT.read_text(encoding="utf-8")
