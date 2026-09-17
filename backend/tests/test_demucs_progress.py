@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.main import demucs_progress_state, extract_demucs_percent
+from app.main import demucs_progress_state, demucs_stall_reason, extract_demucs_percent
 
 
 class DemucsProgressParsingTests(unittest.TestCase):
@@ -26,6 +26,38 @@ class DemucsProgressParsingTests(unittest.TestCase):
         self.assertGreaterEqual(state["progress"], 25)
         self.assertLess(state["progress"], 90)
         self.assertIn("56%", state["message"])
+
+    def test_watchdog_times_out_engine_that_finished_but_never_exits(self) -> None:
+        reason = demucs_stall_reason(
+            now=400.0,
+            last_output_at=100.0,
+            engine_completed_at=100.0,
+            stall_timeout_seconds=900,
+            finalize_timeout_seconds=240,
+        )
+        self.assertIsNotNone(reason)
+        self.assertIn("الملفات النهائية", reason or "")
+
+    def test_watchdog_allows_normal_silent_processing_window(self) -> None:
+        reason = demucs_stall_reason(
+            now=500.0,
+            last_output_at=100.0,
+            engine_completed_at=None,
+            stall_timeout_seconds=900,
+            finalize_timeout_seconds=240,
+        )
+        self.assertIsNone(reason)
+
+    def test_watchdog_times_out_long_precompletion_stall(self) -> None:
+        reason = demucs_stall_reason(
+            now=1001.0,
+            last_output_at=100.0,
+            engine_completed_at=None,
+            stall_timeout_seconds=900,
+            finalize_timeout_seconds=240,
+        )
+        self.assertIsNotNone(reason)
+        self.assertIn("إرسال تقدم", reason or "")
 
 
 if __name__ == "__main__":
