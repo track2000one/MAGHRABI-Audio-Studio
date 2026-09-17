@@ -220,6 +220,21 @@ def extract_demucs_percent(line: str) -> int | None:
     return max(0, min(100, int(match.group(1))))
 
 
+def demucs_progress_state(demucs_percent: int) -> dict[str, object]:
+    percent = max(0, min(100, int(demucs_percent)))
+    if percent >= 100:
+        return {
+            "stage": "finalizing",
+            "progress": 90,
+            "message": "اكتمل فصل المسارات، ويتم الآن كتابة وتجهيز الملفات النهائية...",
+        }
+    return {
+        "stage": "separating",
+        "progress": min(88, 25 + round(percent * 0.63)),
+        "message": f"جاري فصل المسارات وتحليل الصوت — تقدم المحرك {percent}%.",
+    }
+
+
 def run_demucs_with_progress(job_id: str, command: list[str]) -> tuple[int, str]:
     process = subprocess.Popen(
         command,
@@ -247,16 +262,17 @@ def run_demucs_with_progress(job_id: str, command: list[str]) -> tuple[int, str]
         if demucs_percent is None or demucs_percent <= last_demucs_percent:
             return
         last_demucs_percent = demucs_percent
-        mapped_progress = min(88, 25 + round(demucs_percent * 0.63))
+        next_state = demucs_progress_state(demucs_percent)
+        mapped_progress = int(next_state["progress"])
         if mapped_progress <= last_mapped_progress:
             return
         last_mapped_progress = mapped_progress
         update_state(
             job_id,
             status="processing",
-            stage="separating",
+            stage=str(next_state["stage"]),
             progress=mapped_progress,
-            message=f"جاري فصل المسارات وتحليل الصوت — تقدم المحرك {demucs_percent}%.",
+            message=str(next_state["message"]),
         )
 
     while True:
@@ -329,8 +345,8 @@ def run_separation(job_id: str) -> None:
         update_state(
             job_id,
             stage="finalizing",
-            progress=90,
-            message="اكتمل تحليل الصوت، ويتم الآن تجهيز ملفات المسارات للمعاينة والتحميل...",
+            progress=92,
+            message="تم إنشاء الصوت، ويتم الآن التحقق من المسارات وتجهيزها للمعاينة والتحميل...",
         )
         expected = (
             ["vocals", "no_vocals"]
@@ -338,7 +354,7 @@ def run_separation(job_id: str) -> None:
             else ["vocals", "drums", "bass", "other"]
         )
         stems: dict[str, str] = {}
-        for stem in expected:
+        for index, stem in enumerate(expected):
             matches = list(output_root.rglob(f"{stem}.wav"))
             if not matches:
                 continue
@@ -346,6 +362,13 @@ def run_separation(job_id: str) -> None:
             target = exports_dir / target_name
             shutil.copy2(matches[0], target)
             stems["instrumental" if stem == "no_vocals" else stem] = str(target)
+            finalizing_progress = min(99, 94 + round(((index + 1) / len(expected)) * 5))
+            update_state(
+                job_id,
+                stage="finalizing",
+                progress=finalizing_progress,
+                message=f"جاري تجهيز ملفات المسارات النهائية — {index + 1} من {len(expected)}.",
+            )
 
         if not stems:
             raise RuntimeError("لم يتم العثور على المسارات الناتجة بعد انتهاء Demucs.")
