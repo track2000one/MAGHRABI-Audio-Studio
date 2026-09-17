@@ -89,6 +89,12 @@ export async function getJob(jobId: string) {
   const response = await fetch(`/api/jobs/${jobId}`, { credentials: 'include' })
   if (!response.ok) throw await apiError(response, 'تعذر قراءة حالة المعالجة.')
   const job = (await response.json()) as JobResponse
+
+  if (job.status === 'failed' && job.error?.toLowerCase().includes('duplicate-pending-job')) {
+    const canonical = await getActiveJob().catch(() => null)
+    if (canonical && canonical.id !== job.id) return canonical
+  }
+
   if (job.status === 'failed') job.error = userFacingJobError(job.error)
   return job
 }
