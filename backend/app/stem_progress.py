@@ -3,7 +3,20 @@ from __future__ import annotations
 import re
 
 
+_DOWNLOAD_PROGRESS = re.compile(
+    r"\b\d+(?:\.\d+)?\s*(?:[KMGTPE]?i?B)\s*/\s*\d+(?:\.\d+)?\s*(?:[KMGTPE]?i?B)\b",
+    re.IGNORECASE,
+)
+
+
 def extract_demucs_percent(line: str) -> int | None:
+    # Demucs/tqdm also emits model-download progress lines such as
+    # "100%|...| 80.2M/80.2M ... 297MB/s". Those percentages describe the
+    # checkpoint download, not source separation. Ignore byte-oriented output
+    # so the UI cannot jump to the finalizing stage before inference starts.
+    if _DOWNLOAD_PROGRESS.search(line) or re.search(r"\b[KMGTPE]?B/s\b", line, re.IGNORECASE):
+        return None
+
     match = re.search(r"(?<!\d)(\d{1,3})%\|", line)
     if not match:
         match = re.search(r"(?<!\d)(\d{1,3})%", line)
