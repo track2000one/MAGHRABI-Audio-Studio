@@ -14,11 +14,11 @@ _original_save_audio = demucs_audio.save_audio
 def _write_pcm16_wav(wav, path: Path, samplerate: int) -> None:
     """Write a channels-first torch tensor as deterministic 16-bit PCM WAV.
 
-    Demucs 4.0.1 delegates WAV output to torchaudio.save(). The CPU-only
-    TorchAudio wheel used on Railway can decode through FFmpeg while exposing
-    no writable audio backend, so inference succeeds and then fails only while
-    saving the stems. Using the standard-library wave writer removes that
-    optional backend dependency without changing Demucs inference.
+    Demucs 4.0.1 normally delegates WAV output to TorchAudio's optional writer.
+    The CPU-only TorchAudio wheel used on Railway can decode through FFmpeg
+    while exposing no writable audio backend, so inference succeeds and then
+    fails only while saving the stems. Using the standard-library wave writer
+    removes that optional backend dependency without changing Demucs inference.
     """
     if wav.ndim == 1:
         wav = wav.unsqueeze(0)
