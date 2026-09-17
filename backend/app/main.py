@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import json
 import os
-import re
+import queue
 import shutil
 import subprocess
 import sys
@@ -22,11 +22,15 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from app.stem_progress import demucs_progress_state, demucs_stall_reason, extract_demucs_percent
+
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data")).resolve()
 JOBS_DIR = DATA_DIR / "jobs"
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "250"))
 DEMUCS_MODEL = os.getenv("DEMUCS_MODEL", "htdemucs")
 MAX_WORKERS = max(1, int(os.getenv("MAX_WORKERS", "1")))
+DEMUCS_STALL_TIMEOUT_SECONDS = max(60, int(os.getenv("DEMUCS_STALL_TIMEOUT_SECONDS", "900")))
+DEMUCS_FINALIZE_TIMEOUT_SECONDS = max(30, int(os.getenv("DEMUCS_FINALIZE_TIMEOUT_SECONDS", "240")))
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"}
 
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "").strip()
@@ -211,30 +215,6 @@ def finish_timing(state: dict) -> int:
     return int(state.get("elapsed_seconds", 0) or 0)
 
 
-def extract_demucs_percent(line: str) -> int | None:
-    match = re.search(r"(?<!\d)(\d{1,3})%\|", line)
-    if not match:
-        match = re.search(r"(?<!\d)(\d{1,3})%", line)
-    if not match:
-        return None
-    return max(0, min(100, int(match.group(1))))
-
-
-def demucs_progress_state(demucs_percent: int) -> dict[str, object]:
-    percent = max(0, min(100, int(demucs_percent)))
-    if percent >= 100:
-        return {
-            "stage": "finalizing",
-            "progress": 90,
-            "message": "اكتمل فصل المسارات، ويتم الآن كتابة وتجهيز الملفات النهائية...",
-        }
-    return {
-        "stage": "separating",
-        "progress": min(88, 25 + round(percent * 0.63)),
-        "message": f"جاري فصل المسارات وتحليل الصوت — تقدم المحرك {percent}%.",
-    }
-
-
 def run_demucs_with_progress(job_id: str, command: list[str]) -> tuple[int, str]:
     process = subprocess.Popen(
         command,
@@ -247,12 +227,42 @@ def run_demucs_with_progress(job_id: str, command: list[str]) -> tuple[int, str]
         raise RuntimeError("تعذر قراءة مخرجات محرك Demucs.")
 
     tail: deque[str] = deque(maxlen=40)
+    output_queue: queue.Queue[str | None] = queue.Queue()
     buffer = ""
     last_mapped_progress = 24
     last_demucs_percent = -1
+    last_output_at = time.monotonic()
+    engine_completed_at: float | None = None
+    stream_closed = False
+
+    def pump_output() -> None:
+        try:
+            while True:
+                char = process.stdout.read(1)
+                if char == "":
+                    break
+                output_queue.put(char)
+        finally:
+            output_queue.put(None)
+
+    reader = threading.Thread(target=pump_output, name=f"demucs-output-{job_id[:8]}", daemon=True)
+    reader.start()
+
+    def stop_process() -> None:
+        if process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
 
     def handle_line(raw_line: str) -> None:
-        nonlocal last_mapped_progress, last_demucs_percent
+        nonlocal last_mapped_progress, last_demucs_percent, engine_completed_at
         line = raw_line.strip()
         if not line:
             return
@@ -262,6 +272,8 @@ def run_demucs_with_progress(job_id: str, command: list[str]) -> tuple[int, str]
         if demucs_percent is None or demucs_percent <= last_demucs_percent:
             return
         last_demucs_percent = demucs_percent
+        if demucs_percent >= 100 and engine_completed_at is None:
+            engine_completed_at = time.monotonic()
         next_state = demucs_progress_state(demucs_percent)
         mapped_progress = int(next_state["progress"])
         if mapped_progress <= last_mapped_progress:
@@ -275,18 +287,41 @@ def run_demucs_with_progress(job_id: str, command: list[str]) -> tuple[int, str]
             message=str(next_state["message"]),
         )
 
-    while True:
-        char = process.stdout.read(1)
-        if char == "":
-            if process.poll() is not None:
+    try:
+        while True:
+            try:
+                item = output_queue.get(timeout=0.5)
+            except queue.Empty:
+                item = ""
+
+            now = time.monotonic()
+            if item is None:
+                stream_closed = True
+            elif item:
+                last_output_at = now
+                if item in "\r\n":
+                    handle_line(buffer)
+                    buffer = ""
+                else:
+                    buffer += item
+
+            if process.poll() is not None and stream_closed:
                 break
-            time.sleep(0.05)
-            continue
-        if char in "\r\n":
-            handle_line(buffer)
-            buffer = ""
-        else:
-            buffer += char
+
+            reason = demucs_stall_reason(
+                now=now,
+                last_output_at=last_output_at,
+                engine_completed_at=engine_completed_at,
+                stall_timeout_seconds=DEMUCS_STALL_TIMEOUT_SECONDS,
+                finalize_timeout_seconds=DEMUCS_FINALIZE_TIMEOUT_SECONDS,
+            )
+            if reason:
+                stop_process()
+                raise RuntimeError(reason)
+    except Exception:
+        stop_process()
+        raise
+
     if buffer:
         handle_line(buffer)
     return_code = process.wait()
@@ -393,7 +428,7 @@ def run_separation(job_id: str) -> None:
                 job_id,
                 status="failed",
                 stage="failed",
-                progress=100,
+                progress=min(99, max(0, int(failure_state.get("progress", 0) or 0))),
                 elapsed_seconds=finish_timing(failure_state),
                 message="فشلت عملية الفصل.",
                 error=str(exc)[-4000:],
@@ -417,7 +452,7 @@ def _job_finished(job_id: str, future: Future) -> None:
                 job_id,
                 status="failed",
                 stage="failed",
-                progress=100,
+                progress=min(99, max(0, int(failure_state.get("progress", 0) or 0))),
                 elapsed_seconds=finish_timing(failure_state),
                 message="تعذر تشغيل عامل معالجة الصوت.",
                 error=str(exception)[-4000:],
@@ -541,7 +576,7 @@ async def create_job(
             job_id,
             status="failed",
             stage="failed",
-            progress=100,
+            progress=5,
             message="تعذر تشغيل عامل معالجة الصوت.",
             error=str(exc)[-4000:],
         )
