@@ -3,6 +3,7 @@ from __future__ import annotations
 import wave
 from pathlib import Path
 
+import torch
 from demucs import audio as demucs_audio
 from demucs import separate as demucs_separate
 
@@ -25,7 +26,7 @@ def _write_pcm16_wav(wav, path: Path, samplerate: int) -> None:
         raise RuntimeError(f"Unsupported Demucs waveform shape: {tuple(wav.shape)}")
 
     channels = int(wav.shape[0])
-    pcm = (wav.clamp(-1, 1) * 32767.0).round().to(dtype=wav.new_empty((), dtype=None).short().dtype)
+    pcm = (wav.clamp(-1, 1) * 32767.0).round().to(dtype=torch.int16)
     interleaved = pcm.transpose(0, 1).contiguous().cpu().numpy().astype("<i2", copy=False)
 
     path.parent.mkdir(parents=True, exist_ok=True)
