@@ -4,7 +4,11 @@ import re
 
 
 _DOWNLOAD_PROGRESS = re.compile(
-    r"\b\d+(?:\.\d+)?\s*(?:[KMGTPE]?i?B)\s*/\s*\d+(?:\.\d+)?\s*(?:[KMGTPE]?i?B)\b",
+    r"\d+(?:\.\d+)?\s*[KMGTPE](?:i?B)?\s*/\s*\d+(?:\.\d+)?\s*[KMGTPE](?:i?B)?",
+    re.IGNORECASE,
+)
+_TRANSFER_RATE = re.compile(
+    r"\d+(?:\.\d+)?\s*[KMGTPE](?:i?B)?/s",
     re.IGNORECASE,
 )
 
@@ -14,7 +18,7 @@ def extract_demucs_percent(line: str) -> int | None:
     # "100%|...| 80.2M/80.2M ... 297MB/s". Those percentages describe the
     # checkpoint download, not source separation. Ignore byte-oriented output
     # so the UI cannot jump to the finalizing stage before inference starts.
-    if _DOWNLOAD_PROGRESS.search(line) or re.search(r"\b[KMGTPE]?B/s\b", line, re.IGNORECASE):
+    if _DOWNLOAD_PROGRESS.search(line) or _TRANSFER_RATE.search(line):
         return None
 
     match = re.search(r"(?<!\d)(\d{1,3})%\|", line)
