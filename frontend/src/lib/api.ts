@@ -9,6 +9,8 @@ export interface JobResponse {
   stage: 'queued' | 'loading_model' | 'separating' | 'finalizing' | 'completed' | 'failed' | string
   message: string
   elapsed_seconds: number
+  queued_seconds: number
+  queue_position: number
   stems: Partial<Record<StemName, string>>
   error?: string | null
 }
@@ -28,6 +30,9 @@ function userFacingJobError(error?: string | null) {
   if (!error) return 'تعذرت معالجة الملف الصوتي. يرجى المحاولة مرة أخرى.'
   const normalized = error.toLowerCase()
 
+  if (normalized.includes('duplicate-pending-job')) {
+    return 'تم إلغاء نسخة مكررة من المهمة؛ توجد نسخة مطابقة قيد التنفيذ أو الانتظار.'
+  }
   if (normalized.includes('torchcodec')) {
     return 'اكتمل تحليل الصوت، لكن تعذر حفظ المسارات النهائية. تم تحديث محرك التصدير، أعد المحاولة بعد اكتمال نشر النسخة الجديدة.'
   }
@@ -70,6 +75,14 @@ export async function createSeparationJob(file: File, mode: '2stems' | '4stems')
   const response = await fetch('/api/jobs', { method: 'POST', body, credentials: 'include' })
   if (!response.ok) throw await apiError(response, 'تعذر رفع الملف.')
   return response.json() as Promise<JobResponse>
+}
+
+export async function getActiveJob() {
+  const response = await fetch('/api/jobs/active', { credentials: 'include' })
+  if (!response.ok) throw await apiError(response, 'تعذر استعادة مهمة المعالجة الحالية.')
+  const payload = (await response.json()) as { job: JobResponse | null }
+  if (payload.job?.status === 'failed') payload.job.error = userFacingJobError(payload.job.error)
+  return payload.job
 }
 
 export async function getJob(jobId: string) {
