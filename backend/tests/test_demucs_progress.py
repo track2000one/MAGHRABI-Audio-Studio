@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import sys
 import unittest
+from pathlib import Path
 
-from app.main import demucs_progress_state, demucs_stall_reason, extract_demucs_percent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.stem_progress import demucs_progress_state, demucs_stall_reason, extract_demucs_percent
 
 
 class DemucsProgressParsingTests(unittest.TestCase):
